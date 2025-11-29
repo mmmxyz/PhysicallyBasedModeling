@@ -1,6 +1,6 @@
 #pragma once
 
-// ‚±‚Ì‡˜‚ÅƒCƒ“ƒNƒ‹[ƒh‚·‚é‚±‚Æ
+// ã“ã®é †åºã§ã‚¤ãƒ³ã‚¯ãƒ«ãƒ¼ãƒ‰ã™ã‚‹ã“ã¨
 #include <vulkan/vulkan.h>
 #include <GLFW/glfw3.h>
 
@@ -11,21 +11,21 @@
 #include "src/renderer/renderer.hpp"
 #include "src/renderer/gpuMemoryImpl.hpp"
 
-// TODO: À‘••ª—£
+// TODO: å®Ÿè£…åˆ†é›¢
 class RendererImpl
 {
 public:
 	GLFWwindow* window;
 	VkSwapchainKHR swapChain;
-	VkSemaphore imageAvailableSemaphore[2]; // ƒ_ƒuƒ‹ƒoƒbƒtƒ@
+	VkSemaphore imageAvailableSemaphore[2]; // ãƒ€ãƒ–ãƒ«ãƒãƒƒãƒ•ã‚¡
 	VkSemaphore renderFinishedSemaphore[2];
 	VkFence inFlightFence[2];
-	VkCommandBuffer CB[2]; // ƒ_ƒuƒ‹ƒoƒbƒtƒ@
-	VkRenderPass renderPass;
-	VkFramebuffer* frameBuffers;
-	VkPipeline graphicsPipeline = {};
-	VkPipelineLayout pipelineLayout;
-	VkDescriptorSet descriptorSet;
+	VkCommandBuffer CB[2]; // ãƒ€ãƒ–ãƒ«ãƒãƒƒãƒ•ã‚¡
+	//VkRenderPass renderPass;
+	//VkFramebuffer* frameBuffers;
+	//VkPipeline graphicsPipeline = {};
+	//VkPipelineLayout pipelineLayout;
+	//VkDescriptorSet descriptorSet;
 	VkQueue queue;
 	VkExtent2D swapChainExtent = {};
 	uint32_t swapChainImageCount;
@@ -42,7 +42,7 @@ public:
 
 	bool isProcessing[2] = { false, false };
 
-	VkViewport viewport = {}; // ƒtƒŒ[ƒ€ƒoƒbƒtƒ@‚Ì‚Ç‚±‚Éƒ}ƒbƒv‚³‚ê‚é‚©
+	VkViewport viewport = {}; // ãƒ•ãƒ¬ãƒ¼ãƒ ãƒãƒƒãƒ•ã‚¡ã®ã©ã“ã«ãƒãƒƒãƒ—ã•ã‚Œã‚‹ã‹
 	VkRect2D scissor = { };
 
 	void* mappedData = nullptr;
@@ -58,6 +58,8 @@ public:
 		VkPipeline graphicsPipeline;
 		VkPipelineLayout pipelineLayout;
 		VkRenderPass renderPass;
+		std::vector<VkDescriptorSetLayout> pDescriptorSetLayout;
+		VkFramebuffer * pFrameBuffer;
 	};
 
 	class VertexInputStateImpl
@@ -74,6 +76,7 @@ public:
 		}
 	};
 
+	std::unordered_map<std::string, GraphicsPipelineImpl*> graphicsPipelineMap;
 	std::unordered_map<std::string, VkShaderModule> shaderModuleMap;
 	std::unordered_map<std::string, VertexInputStateImpl*> vertexInputStateImplMap;
 
@@ -103,7 +106,7 @@ public:
 		uboBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 		uboBufferCreateInfo.size = size;
 		uboBufferCreateInfo.usage = usageFlag;
-		uboBufferCreateInfo.flags = 0; // –¢g—p
+		uboBufferCreateInfo.flags = 0; // æœªä½¿ç”¨
 		uboBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE; //
 		uboBufferCreateInfo.pNext = nullptr;
 
@@ -115,7 +118,7 @@ public:
 
 		VkMemoryAllocateInfo MAInfo3;
 		MAInfo3.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-		MAInfo3.pNext = nullptr; //Šg’£‹@”\‚ğg‚í‚È‚¢‚Ì‚È‚çnullptr
+		MAInfo3.pNext = nullptr; //æ‹¡å¼µæ©Ÿèƒ½ã‚’ä½¿ã‚ãªã„ã®ãªã‚‰nullptr
 		MAInfo3.allocationSize = uboMemoryRequirements.size;
 		MAInfo3.memoryTypeIndex = memory_type_index;
 
@@ -194,7 +197,7 @@ public:
 		VkMemoryAllocateInfo textureImageAllocateInfo = {};
 		textureImageAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 		textureImageAllocateInfo.allocationSize = textureMemoryRequirements.size;
-		textureImageAllocateInfo.memoryTypeIndex = memory_type_index_host_local; // ƒeƒNƒXƒ`ƒƒ‚ÍƒzƒXƒgƒ[ƒJƒ‹‚É’u‚¢‚½‚Ù‚¤‚ª—Ç‚¢
+		textureImageAllocateInfo.memoryTypeIndex = memory_type_index_host_local; // ãƒ†ã‚¯ã‚¹ãƒãƒ£ã¯ãƒ›ã‚¹ãƒˆãƒ­ãƒ¼ã‚«ãƒ«ã«ç½®ã„ãŸã»ã†ãŒè‰¯ã„
 
 		AllocateDeviceMemory(textureImageAllocateInfo, gpuTextureMemoryImpl.gpuMemory);
 
@@ -239,7 +242,7 @@ public:
 
 	void TransferStagingBufferToImage(GpuMemoryImpl& stagingBufferMemory, GpuTextureMemoryImpl& textureMemory)
 	{
-		// GPU ‚Å“]‘—
+		// GPU ã§è»¢é€
 
 		VkCommandBufferBeginInfo textureCBBI = {};
 		textureCBBI.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;

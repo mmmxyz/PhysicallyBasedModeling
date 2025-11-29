@@ -5,29 +5,26 @@
 #include "src/utils/mathfunc/mathfunc.hpp"
 #include "src/utils/memory/allocator.hpp"
 
-template<class ValueType>
-class ValueArray
-{
-protected:
-	RootAllocator RootAllocator; // å„Ç≈è¡Ç∑
+template <class ValueType>
+class ValueArray {
+    protected:
+	RootAllocator m_RootAllocator;
 
-	std::vector<ValueType, TypeAllocator<ValueType> > buffer;
-public:
+	std::vector<ValueType, TypeAllocator<ValueType>> buffer;
 
-	// å„Ç≈è¡Ç∑
+    public:
 	ValueArray()
-		: buffer(*(new TypeAllocator<ValueType>(&RootAllocator, "aa")))
+	    : buffer(*(new TypeAllocator<ValueType>(&m_RootAllocator, "aa")))
 	{
-
 	}
 
 	ValueArray(TypeAllocator<ValueType>& alloc)
-		: buffer(alloc)
+	    : buffer(alloc)
 	{
 	}
 
 	ValueArray(uint32_t size, TypeAllocator<ValueType>& alloc)
-		: buffer(alloc)
+	    : buffer(alloc)
 	{
 		buffer.resize(size);
 	}

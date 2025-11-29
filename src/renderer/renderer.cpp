@@ -6,8 +6,8 @@
 
 #include <array>
 #include <fstream>
+#include <cstring>
 #include "src/utils/logger/logger.hpp"
-
 
 void Renderer::CreateGraphicsPipeline(Renderer::GraphicsPipelineParams& graphicsPipelineParams)
 {
@@ -16,34 +16,37 @@ void Renderer::CreateGraphicsPipeline(Renderer::GraphicsPipelineParams& graphics
 
 	VkResult result;
 
-	auto createShaderModule = [&](const char* filePath) -> VkShaderModule {
+	auto pGraphicsPipelineImpl =  new RendererImpl::GraphicsPipelineImpl();
+	m_pImpl->graphicsPipelineMap[graphicsPipelineParams.name] = pGraphicsPipelineImpl;
 
-		if (m_pImpl->shaderModuleMap.find(filePath) != m_pImpl->shaderModuleMap.end())
-		{
+
+
+	
+	auto createShaderModule = [&](const char* filePath) -> VkShaderModule {
+		if (m_pImpl->shaderModuleMap.find(filePath) != m_pImpl->shaderModuleMap.end()) {
 			return m_pImpl->shaderModuleMap[filePath];
 		}
 
 		uint32_t shaderCodeSize = 0;
-		char* shaderCode = nullptr;
+		char* shaderCode	= nullptr;
 		std::ifstream ifs(filePath, std::ios::binary);
-		if (!ifs)
-		{
+		if (!ifs) {
 			logger << "failed to find shader binary file : " << filePath << std::endl;
 			exit(1);
 		}
 		ifs.seekg(0, std::ios::end);
 		shaderCodeSize = ifs.tellg();
-		shaderCode = new char[shaderCodeSize];
+		shaderCode     = new char[shaderCodeSize];
 		ifs.seekg(0);
 
 		ifs.read(shaderCode, shaderCodeSize);
 
 		VkShaderModuleCreateInfo SMCI;
-		SMCI.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-		SMCI.pNext = nullptr;
-		SMCI.flags = 0;// —\–ñ
+		SMCI.sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+		SMCI.pNext    = nullptr;
+		SMCI.flags    = 0; // äºˆç´„
 		SMCI.codeSize = shaderCodeSize;
-		SMCI.pCode = reinterpret_cast<uint32_t*>(shaderCode);
+		SMCI.pCode    = reinterpret_cast<uint32_t*>(shaderCode);
 
 		VkShaderModule shaderModule;
 		VkResult result = vkCreateShaderModule(m_pImpl->logicalDevice, &SMCI, nullptr, &shaderModule);
@@ -51,43 +54,40 @@ void Renderer::CreateGraphicsPipeline(Renderer::GraphicsPipelineParams& graphics
 		m_pImpl->shaderModuleMap[filePath] = shaderModule;
 
 		return shaderModule;
-		};
+	};
 
 	VkPipelineShaderStageCreateInfo shaderStages[16] = {};
-	for (int i = 0; i < graphicsPipelineParams.shaders.size(); i++)
-	{
+	for (int i = 0; i < graphicsPipelineParams.shaders.size(); i++) {
 		ShaderStageParams& shaderStageParam = *graphicsPipelineParams.shaders[i];
 		logger << "Shader Stage " << shaderStageParam.stageType << ":"
-			<< " Path: " << shaderStageParam.shaderPath << std::endl;
+		       << " Path: " << shaderStageParam.shaderPath << std::endl;
 
 		VkShaderModule shaderModule = createShaderModule(shaderStageParam.shaderPath.data());
 
-		shaderStages[i].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-		shaderStages[i].pNext = nullptr;
-		shaderStages[i].flags = 0; // —\–ñ
-		shaderStages[i].stage = (shaderStageParam.stageType == ShaderStageParams::Vertex) ? VK_SHADER_STAGE_VERTEX_BIT : VK_SHADER_STAGE_FRAGMENT_BIT;
+		shaderStages[i].sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+		shaderStages[i].pNext  = nullptr;
+		shaderStages[i].flags  = 0; // äºˆç´„
+		shaderStages[i].stage  = (shaderStageParam.stageType == ShaderStageParams::Vertex) ? VK_SHADER_STAGE_VERTEX_BIT : VK_SHADER_STAGE_FRAGMENT_BIT;
 		shaderStages[i].module = shaderModule;
-		shaderStages[i].pName = "main"; // ƒGƒ“ƒgƒŠƒ|ƒCƒ“ƒg‚Ìw’èiŠÖ”–¼j
-		shaderStages[i].pSpecializationInfo; // “Áê‰»’è”‚Ég‚¤ constant_id ‚Å—^‚¦‚ç‚ê‚é•Ï”‚É’l‚ğ—^‚¦‚é
+		shaderStages[i].pName  = "main";     // ã‚¨ãƒ³ãƒˆãƒªãƒã‚¤ãƒ³ãƒˆã®æŒ‡å®šï¼ˆé–¢æ•°åï¼‰
+		shaderStages[i].pSpecializationInfo; // ç‰¹æ®ŠåŒ–å®šæ•°ã«ä½¿ã† constant_id ã§ä¸ãˆã‚‰ã‚Œã‚‹å¤‰æ•°ã«å€¤ã‚’ä¸ãˆã‚‹
 	}
 
-	VkPipelineCache piplineCache = {}; // ƒLƒƒƒbƒVƒ…‚ğƒfƒBƒXƒN‚È‚Ç‚É•Û‘¶‚Å‚«‚é
+	VkPipelineCache piplineCache = {}; // ã‚­ãƒ£ãƒƒã‚·ãƒ¥ã‚’ãƒ‡ã‚£ã‚¹ã‚¯ãªã©ã«ä¿å­˜ã§ãã‚‹
 
-	//// State ‚ğİ’è
+	//// State ã‚’è¨­å®š
 
-	// “®“I‚ÉŒˆ‚ß‚ç‚ê‚é = ƒpƒCƒvƒ‰ƒCƒ“‚ÌÄì¬‚ğ—v‹‚µ‚È‚¢
+	// å‹•çš„ã«æ±ºã‚ã‚‰ã‚Œã‚‹ = ãƒ‘ã‚¤ãƒ—ãƒ©ã‚¤ãƒ³ã®å†ä½œæˆã‚’è¦æ±‚ã—ãªã„
 	VkDynamicState dynamicStates[2] = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
 
 	VkPipelineDynamicStateCreateInfo dynamicState = {};
-	dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-	dynamicState.dynamicStateCount = 2;
-	dynamicState.pDynamicStates = dynamicStates;
-
+	dynamicState.sType			      = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+	dynamicState.dynamicStateCount		      = 2;
+	dynamicState.pDynamicStates		      = dynamicStates;
 
 	auto createDescriptorSetLayoutBinding = [&](DescriptorSetBindingParams& descriptorSetLayoutParam, VkDescriptorSetLayoutBinding& layoutBinding) -> void {
 		layoutBinding.binding = descriptorSetLayoutParam.bindingNum;
-		switch (descriptorSetLayoutParam.type)
-		{
+		switch (descriptorSetLayoutParam.type) {
 		case DescriptorSetBindingParams::UniformBuffer_bit:
 			layoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 			break;
@@ -99,240 +99,205 @@ void Renderer::CreateGraphicsPipeline(Renderer::GraphicsPipelineParams& graphics
 			break;
 		}
 		layoutBinding.descriptorCount = descriptorSetLayoutParam.count;
-		layoutBinding.stageFlags = 0;
-		if (descriptorSetLayoutParam.shaderStage & DescriptorSetBindingParams::Vertex_bit)
-		{
+		layoutBinding.stageFlags      = 0;
+		if (descriptorSetLayoutParam.shaderStage & DescriptorSetBindingParams::Vertex_bit) {
 			layoutBinding.stageFlags |= VK_SHADER_STAGE_VERTEX_BIT;
 		}
-		if (descriptorSetLayoutParam.shaderStage & DescriptorSetBindingParams::Fragment_bit)
-		{
+		if (descriptorSetLayoutParam.shaderStage & DescriptorSetBindingParams::Fragment_bit) {
 			layoutBinding.stageFlags |= VK_SHADER_STAGE_FRAGMENT_BIT;
 		}
-		};
+	};
 
 	const int descriptorSetCounter = graphicsPipelineParams.descriptorSetParams.size();
 
-	m_pImpl->pDescriptorSetLayout = new VkDescriptorSetLayout[descriptorSetCounter];
-	for (int i = 0; i < descriptorSetCounter; i++)
-	{
+	pGraphicsPipelineImpl->pDescriptorSetLayout.resize(descriptorSetCounter);
+	for (int i = 0; i < descriptorSetCounter; i++) {
 		VkDescriptorSetLayoutBinding layoutBindings[256] = {};
 
 		auto descriptorSetLayoutParam = graphicsPipelineParams.descriptorSetParams[i];
-		for (int j = 0; j < descriptorSetLayoutParam->descriptorSetBindingParams.size(); j++)
-		{
+		for (int j = 0; j < descriptorSetLayoutParam->descriptorSetBindingParams.size(); j++) {
 			createDescriptorSetLayoutBinding(*descriptorSetLayoutParam->descriptorSetBindingParams[j], layoutBindings[j]);
 		}
 
-
 		VkDescriptorSetLayoutCreateInfo DSLCI = {};
-		DSLCI.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-		DSLCI.bindingCount = descriptorSetLayoutParam->descriptorSetBindingParams.size();
-		DSLCI.pBindings = layoutBindings;
+		DSLCI.sType			      = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+		DSLCI.bindingCount		      = descriptorSetLayoutParam->descriptorSetBindingParams.size();
+		DSLCI.pBindings			      = layoutBindings;
 
-		result = vkCreateDescriptorSetLayout(m_pImpl->logicalDevice, &DSLCI, nullptr, &m_pImpl->pDescriptorSetLayout[i]);
-		if (result != VK_SUCCESS)
-		{
+		result = vkCreateDescriptorSetLayout(m_pImpl->logicalDevice, &DSLCI, nullptr, &pGraphicsPipelineImpl->pDescriptorSetLayout[i]);
+		if (result != VK_SUCCESS) {
 			exit(1);
 		}
 	}
 
-
-
-
-
 	VkPipelineInputAssemblyStateCreateInfo PIASCI = {};
-	PIASCI.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-	PIASCI.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-	PIASCI.primitiveRestartEnable = VK_FALSE; // _STRIP Œn‚Ì topology ‚Ì‚Æ‚«CƒCƒ“ƒfƒbƒNƒX‚ª 0xFFFF ‚Ì‚Æ‚«‘Å‚¿Ø‚é‚©‚Ç‚¤‚©
-
-
-
-
-
-
-
-
-
-
-
+	PIASCI.sType				      = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+	PIASCI.topology				      = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+	PIASCI.primitiveRestartEnable		      = VK_FALSE; // _STRIP ç³»ã® topology ã®ã¨ãï¼Œã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹ãŒ 0xFFFF ã®ã¨ãæ‰“ã¡åˆ‡ã‚‹ã‹ã©ã†ã‹
 
 	VkPipelineViewportStateCreateInfo viewportState = {};
-	viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-	viewportState.viewportCount = 1;
-	viewportState.scissorCount = 1;
-	// dynamic state ‚Å viewport ‚Æ scissor ‚ğw’è‚µ‚½‚Ì‚Åª‚Ì\‘¢‘Ì‚É‚Í—¼Ò‚ğŠi”[‚µ‚È‚¢
-
+	viewportState.sType				= VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+	viewportState.viewportCount			= 1;
+	viewportState.scissorCount			= 1;
+	// dynamic state ã§ viewport ã¨ scissor ã‚’æŒ‡å®šã—ãŸã®ã§â†‘ã®æ§‹é€ ä½“ã«ã¯ä¸¡è€…ã‚’æ ¼ç´ã—ãªã„
 
 	//// rasterizer
 
 	VkPipelineRasterizationStateCreateInfo PRSC = {};
-	PRSC.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-	PRSC.depthClampEnable = VK_FALSE; // near, far ‚ğ‰z‚¦‚é‚Æ discard ‚·‚é‚Ì‚Å‚Í‚È‚­ clamp ‚³‚ê‚éC shadow map ì‚é‚Æ‚«‚É•Ö—˜
-	PRSC.rasterizerDiscardEnable = VK_FALSE; // 
-	PRSC.polygonMode = VK_POLYGON_MODE_FILL; // line ‚¾‚¯C point ‚¾‚¯•`‰æ‚µ‚½‚¢‚È‚Ç
-	PRSC.lineWidth = 1.0f; //
-	PRSC.cullMode = VK_CULL_MODE_NONE;
-	PRSC.frontFace = VK_FRONT_FACE_CLOCKWISE;
-	// fragment slope ‚É‰‚¶‚Ä depth ’l‚ğC³‚Å‚«‚é
-	PRSC.depthBiasEnable = VK_FALSE; // –³ŒøiZƒtƒ@ƒCƒeƒBƒ“ƒO—}§‚Ég‚í‚ê‚éj
+	PRSC.sType				    = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+	PRSC.depthClampEnable			    = VK_FALSE;		    // near, far ã‚’è¶Šãˆã‚‹ã¨ discard ã™ã‚‹ã®ã§ã¯ãªã clamp ã•ã‚Œã‚‹ï¼Œ shadow map ä½œã‚‹ã¨ãã«ä¾¿åˆ©
+	PRSC.rasterizerDiscardEnable		    = VK_FALSE;		    //
+	PRSC.polygonMode			    = VK_POLYGON_MODE_FILL; // line ã ã‘ï¼Œ point ã ã‘æç”»ã—ãŸã„ãªã©
+	PRSC.lineWidth				    = 1.0f;		    //
+	PRSC.cullMode				    = VK_CULL_MODE_NONE;
+	PRSC.frontFace				    = VK_FRONT_FACE_CLOCKWISE;
+	// fragment slope ã«å¿œã˜ã¦ depth å€¤ã‚’ä¿®æ­£ã§ãã‚‹
+	PRSC.depthBiasEnable	     = VK_FALSE; // ç„¡åŠ¹ï¼ˆZãƒ•ã‚¡ã‚¤ãƒ†ã‚£ãƒ³ã‚°æŠ‘åˆ¶ã«ä½¿ã‚ã‚Œã‚‹ï¼‰
 	PRSC.depthBiasConstantFactor = 0.0f;
-	PRSC.depthBiasClamp = 0.0f;
-	PRSC.depthBiasSlopeFactor = 0.0f;
+	PRSC.depthBiasClamp	     = 0.0f;
+	PRSC.depthBiasSlopeFactor    = 0.0f;
 
-	// multiSample: OŠpŒ`‚Ì edge ü•Ó‚Å•¡”ƒ|ƒŠƒSƒ“‚©‚çƒsƒNƒZƒ‹‚ÉŠ„‚è“–‚Ä‚ç‚ê‚é‚Æ‚«‚Ìˆ—
+	// multiSample: ä¸‰è§’å½¢ã® edge å‘¨è¾ºã§è¤‡æ•°ãƒãƒªã‚´ãƒ³ã‹ã‚‰ãƒ”ã‚¯ã‚»ãƒ«ã«å‰²ã‚Šå½“ã¦ã‚‰ã‚Œã‚‹ã¨ãã®å‡¦ç†
 	VkPipelineMultisampleStateCreateInfo PMSC = {};
-	PMSC.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-	PMSC.sampleShadingEnable = VK_FALSE;
-	PMSC.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-	PMSC.minSampleShading = 1.0;
-	PMSC.pSampleMask = nullptr;
-	PMSC.alphaToCoverageEnable = VK_FALSE;
-	PMSC.alphaToOneEnable = VK_FALSE;
+	PMSC.sType				  = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+	PMSC.sampleShadingEnable		  = VK_FALSE;
+	PMSC.rasterizationSamples		  = VK_SAMPLE_COUNT_1_BIT;
+	PMSC.minSampleShading			  = 1.0;
+	PMSC.pSampleMask			  = nullptr;
+	PMSC.alphaToCoverageEnable		  = VK_FALSE;
+	PMSC.alphaToOneEnable			  = VK_FALSE;
 
 	VkPipelineDepthStencilStateCreateInfo PDSSC = {};
-	PDSSC.depthBoundsTestEnable = VK_TRUE;
-	PDSSC.depthCompareOp = VK_COMPARE_OP_GREATER_OR_EQUAL;
-	PDSSC.depthWriteEnable = VK_TRUE;
-	PDSSC.depthBoundsTestEnable = VK_FALSE; // ‹«ŠEƒeƒXƒg‚ÍOFF
-	PDSSC.stencilTestEnable = VK_FALSE;
-
+	PDSSC.depthBoundsTestEnable		    = VK_TRUE;
+	PDSSC.depthCompareOp			    = VK_COMPARE_OP_GREATER_OR_EQUAL;
+	PDSSC.depthWriteEnable			    = VK_TRUE;
+	PDSSC.depthBoundsTestEnable		    = VK_FALSE; // å¢ƒç•Œãƒ†ã‚¹ãƒˆã¯OFF
+	PDSSC.stencilTestEnable			    = VK_FALSE;
 
 	VkPipelineColorBlendAttachmentState PCBAS = {};
-	PCBAS.colorWriteMask =
-		VK_COLOR_COMPONENT_R_BIT |
-		VK_COLOR_COMPONENT_G_BIT |
-		VK_COLOR_COMPONENT_B_BIT |
-		VK_COLOR_COMPONENT_A_BIT;
-	PCBAS.blendEnable = VK_TRUE;
-	PCBAS.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-	PCBAS.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-	PCBAS.colorBlendOp = VK_BLEND_OP_ADD;
-	PCBAS.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-	PCBAS.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-	PCBAS.alphaBlendOp = VK_BLEND_OP_ADD;
+	PCBAS.colorWriteMask			  = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+	PCBAS.blendEnable			  = VK_TRUE;
+	PCBAS.dstColorBlendFactor		  = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+	PCBAS.srcColorBlendFactor		  = VK_BLEND_FACTOR_SRC_ALPHA;
+	PCBAS.colorBlendOp			  = VK_BLEND_OP_ADD;
+	PCBAS.dstAlphaBlendFactor		  = VK_BLEND_FACTOR_ZERO;
+	PCBAS.srcAlphaBlendFactor		  = VK_BLEND_FACTOR_ONE;
+	PCBAS.alphaBlendOp			  = VK_BLEND_OP_ADD;
 
 	VkPipelineColorBlendStateCreateInfo PCBSC = {};
-	PCBSC.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-	PCBSC.pNext = nullptr;
-	PCBSC.logicOpEnable = VK_FALSE;
-	PCBSC.attachmentCount = 1;
-	PCBSC.pAttachments = &PCBAS;
+	PCBSC.sType				  = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+	PCBSC.pNext				  = nullptr;
+	PCBSC.logicOpEnable			  = VK_FALSE;
+	PCBSC.attachmentCount			  = 1;
+	PCBSC.pAttachments			  = &PCBAS;
 
-	// ƒpƒCƒvƒ‰ƒCƒ“ƒŒƒCƒAƒEƒgì¬
+	// ãƒ‘ã‚¤ãƒ—ãƒ©ã‚¤ãƒ³ãƒ¬ã‚¤ã‚¢ã‚¦ãƒˆä½œæˆ
 	VkPipelineLayoutCreateInfo PLCI = {};
-	PLCI.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	PLCI.flags = 0;
-	PLCI.pNext = nullptr;
-	PLCI.setLayoutCount = 0;
-	PLCI.pSetLayouts = nullptr;
-	PLCI.pushConstantRangeCount = 0; // uniform buffer ‚Íg‚í‚È‚¢
-	PLCI.pPushConstantRanges = nullptr;
-	PLCI.setLayoutCount = descriptorSetCounter;
-	PLCI.pSetLayouts = m_pImpl->pDescriptorSetLayout;
+	PLCI.sType			= VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	PLCI.flags			= 0;
+	PLCI.pNext			= nullptr;
+	PLCI.setLayoutCount		= 0;
+	PLCI.pSetLayouts		= nullptr;
+	PLCI.pushConstantRangeCount	= 0; // uniform buffer ã¯ä½¿ã‚ãªã„
+	PLCI.pPushConstantRanges	= nullptr;
+	PLCI.setLayoutCount		= descriptorSetCounter;
+	PLCI.pSetLayouts		= m_pImpl->pDescriptorSetLayout;
 
-	result = vkCreatePipelineLayout(m_pImpl->logicalDevice, &PLCI, nullptr, &m_pImpl->pipelineLayout);
-	if (result != VK_SUCCESS)
-	{
+	result = vkCreatePipelineLayout(m_pImpl->logicalDevice, &PLCI, nullptr, &pGraphicsPipelineImpl->pipelineLayout);
+	if (result != VK_SUCCESS) {
 		exit(1);
 	}
 	// vkDestroyPipelineLayout(logicaldevice, pipelineLayout, nullptr);
 
+	/////// RenderPath ä½œæˆ
 
-
-	/////// RenderPath ì¬
-
-	// ‚±‚±‚Å‚Í swap chain ‚Ì‰æ‘œ‚ğ•\‚·ƒJƒ‰[ƒoƒbƒtƒ@‚ÌƒAƒ^ƒbƒ`ƒƒ“ƒg‚ğì¬
+	// ã“ã“ã§ã¯ swap chain ã®ç”»åƒã‚’è¡¨ã™ã‚«ãƒ©ãƒ¼ãƒãƒƒãƒ•ã‚¡ã®ã‚¢ã‚¿ãƒƒãƒãƒ¡ãƒ³ãƒˆã‚’ä½œæˆ
 	VkAttachmentDescription colorAttachDescription = {};
-	colorAttachDescription.format = m_pImpl->swapChainImageFormat;
-	colorAttachDescription.samples = VK_SAMPLE_COUNT_1_BIT; // multi sample ‚µ‚È‚¢
-	colorAttachDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-	colorAttachDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-	colorAttachDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-	colorAttachDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-	colorAttachDescription.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	colorAttachDescription.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	colorAttachDescription.format		       = m_pImpl->swapChainImageFormat;
+	colorAttachDescription.samples		       = VK_SAMPLE_COUNT_1_BIT; // multi sample ã—ãªã„
+	colorAttachDescription.loadOp		       = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	colorAttachDescription.storeOp		       = VK_ATTACHMENT_STORE_OP_STORE;
+	colorAttachDescription.stencilLoadOp	       = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+	colorAttachDescription.stencilStoreOp	       = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+	colorAttachDescription.initialLayout	       = VK_IMAGE_LAYOUT_UNDEFINED;
+	colorAttachDescription.finalLayout	       = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
-	// attachment QÆ
+	// attachment å‚ç…§
 	VkAttachmentReference colorAttachRef = {};
-	colorAttachRef.attachment = 0; // index = 0
-	colorAttachRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; // color Å“K
+	colorAttachRef.attachment	     = 0;					 // index = 0
+	colorAttachRef.layout		     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; // color æœ€é©
 
 	// subpass
 	VkSubpassDescription subpass = {};
-	subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+	subpass.pipelineBindPoint    = VK_PIPELINE_BIND_POINT_GRAPHICS;
 	subpass.colorAttachmentCount = 1;
-	subpass.pColorAttachments = &colorAttachRef; // ‚±‚ê‚Å layout(location = 0) out vec4 outColor ‚ª‚Å‚«‚é
+	subpass.pColorAttachments    = &colorAttachRef; // ã“ã‚Œã§ layout(location = 0) out vec4 outColor ãŒã§ãã‚‹
 
 	// render pass
 	VkRenderPassCreateInfo RPCI = {};
-	RPCI.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-	RPCI.attachmentCount = 1;
-	RPCI.pAttachments = &colorAttachDescription;
-	RPCI.subpassCount = 1;
-	RPCI.pSubpasses = &subpass;
+	RPCI.sType		    = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+	RPCI.attachmentCount	    = 1;
+	RPCI.pAttachments	    = &colorAttachDescription;
+	RPCI.subpassCount	    = 1;
+	RPCI.pSubpasses		    = &subpass;
 
-	result = vkCreateRenderPass(m_pImpl->logicalDevice, &RPCI, nullptr, &m_pImpl->renderPass);
-	if (result != VK_SUCCESS)
-	{
+	result = vkCreateRenderPass(m_pImpl->logicalDevice, &RPCI, nullptr, &pGraphicsPipelineImpl->renderPass);
+	if (result != VK_SUCCESS) {
 		exit(1);
 	}
 	///vkDestroyRenderPass(logicaldevice, renderPass, nullptr);
 
-		// Graphic Pipeline
+	// Graphic Pipeline
 
-	VkGraphicsPipelineCreateInfo GPCI = { };
-	GPCI.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-	GPCI.pNext = nullptr;
-	GPCI.stageCount = 2;
-	GPCI.pStages = shaderStages;
-	GPCI.pVertexInputState = &m_pImpl->vertexInputStateImplMap["struct BasicVertex"]->vertexInputInfo;
-	GPCI.pInputAssemblyState = &PIASCI;
-	GPCI.pViewportState = &viewportState;
-	GPCI.pRasterizationState = &PRSC;
-	GPCI.pMultisampleState = &PMSC;
-	GPCI.pDepthStencilState = &PDSSC;
-	GPCI.pColorBlendState = &PCBSC;
-	GPCI.pDynamicState = &dynamicState;
+	VkGraphicsPipelineCreateInfo GPCI = {};
+	GPCI.sType			  = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+	GPCI.pNext			  = nullptr;
+	GPCI.stageCount			  = 2;
+	GPCI.pStages			  = shaderStages;
+	GPCI.pVertexInputState		  = &m_pImpl->vertexInputStateImplMap[graphicsPipelineParams.vertexLayoutName]->vertexInputInfo;
+	GPCI.pInputAssemblyState	  = &PIASCI;
+	GPCI.pViewportState		  = &viewportState;
+	GPCI.pRasterizationState	  = &PRSC;
+	GPCI.pMultisampleState		  = &PMSC;
+	GPCI.pDepthStencilState		  = &PDSSC;
+	GPCI.pColorBlendState		  = &PCBSC;
+	GPCI.pDynamicState		  = &dynamicState;
 
-	GPCI.layout = m_pImpl->pipelineLayout;
+	GPCI.layout = pGraphicsPipelineImpl->pipelineLayout;
 
-	GPCI.renderPass = m_pImpl->renderPass;
-	GPCI.subpass = 0; // index = 0;
+	GPCI.renderPass = pGraphicsPipelineImpl->renderPass;
+	GPCI.subpass	= 0; // index = 0;
 
-	GPCI.basePipelineHandle = VK_NULL_HANDLE; // •sg—p
-	GPCI.basePipelineIndex = -1;
+	GPCI.basePipelineHandle = VK_NULL_HANDLE; // ä¸ä½¿ç”¨
+	GPCI.basePipelineIndex	= -1;
 
-	result = vkCreateGraphicsPipelines(m_pImpl->logicalDevice, VK_NULL_HANDLE, 1, &GPCI, nullptr, &m_pImpl->graphicsPipeline);
-	if (result != VK_SUCCESS)
-	{
+	result = vkCreateGraphicsPipelines(m_pImpl->logicalDevice, VK_NULL_HANDLE, 1, &GPCI, nullptr, &pGraphicsPipelineImpl->graphicsPipeline);
+	if (result != VK_SUCCESS) {
 		exit(1);
 	}
 
+	// framebuffer ä½œæˆ
 
-	// framebuffer ì¬
+	// frame buffer ha renderpass ã”ã¨ã«å¿…è¦ã‹ï¼Ÿ
 
-	VkFramebuffer* frameBuffers = new VkFramebuffer[m_pImpl->swapChainImageCount];
-	m_pImpl->frameBuffers = frameBuffers;
-	for (int i = 0; i < m_pImpl->swapChainImageCount; i++)
-	{
+	pGraphicsPipelineImpl->pFrameBuffer = new VkFramebuffer[m_pImpl->swapChainImageCount];
+	for (int i = 0; i < m_pImpl->swapChainImageCount; i++) {
 		VkFramebufferCreateInfo FCI = {};
-		FCI.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-		FCI.flags = 0;
-		FCI.renderPass = m_pImpl->renderPass;
-		FCI.attachmentCount = 1;
-		FCI.pAttachments = &m_pImpl->swapChainImageViews[i];
-		FCI.width = m_pImpl->surfaceCapabilities.currentExtent.width;
-		FCI.height = m_pImpl->surfaceCapabilities.currentExtent.height;
-		FCI.layers = 1;
+		FCI.sType		    = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+		FCI.flags		    = 0;
+		FCI.renderPass		    = pGraphicsPipelineImpl->renderPass;
+		FCI.attachmentCount	    = 1;
+		FCI.pAttachments	    = &m_pImpl->swapChainImageViews[i];
+		FCI.width		    = m_pImpl->surfaceCapabilities.currentExtent.width;
+		FCI.height		    = m_pImpl->surfaceCapabilities.currentExtent.height;
+		FCI.layers		    = 1;
 
-		result = vkCreateFramebuffer(m_pImpl->logicalDevice, &FCI, nullptr, &frameBuffers[i]);
-		if (result != VK_SUCCESS)
-		{
+		result = vkCreateFramebuffer(m_pImpl->logicalDevice, &FCI, nullptr, &pGraphicsPipelineImpl->pFrameBuffer[i]);
+		if (result != VK_SUCCESS) {
 			exit(1);
 		}
 	}
 }
-
 
 Renderer::GpuBuffer Renderer::CreateGpuBuffer(uint32_t size, Renderer::BufferCreateUsage usage)
 {
@@ -354,17 +319,16 @@ Renderer::GpuTexture Renderer::CreateGpuTexture(uint32_t width, uint32_t height)
 Renderer::DescriptorSetInterface Renderer::CreateDescriptorSetInterface(int set)
 {
 	DescriptorSetImpl* pDescriptorSetImpl = new DescriptorSetImpl();
-	pDescriptorSetImpl->set = set;
+	pDescriptorSetImpl->set		      = set;
 
 	VkDescriptorSetAllocateInfo DSAI = {};
-	DSAI.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-	DSAI.descriptorPool = m_pImpl->descriptorPool;
-	DSAI.descriptorSetCount = 1;
-	DSAI.pSetLayouts = &m_pImpl->pDescriptorSetLayout[set];
+	DSAI.sType			 = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	DSAI.descriptorPool		 = m_pImpl->descriptorPool;
+	DSAI.descriptorSetCount		 = 1;
+	DSAI.pSetLayouts		 = &m_pImpl->pDescriptorSetLayout[set];
 
 	VkResult result = vkAllocateDescriptorSets(m_pImpl->logicalDevice, &DSAI, &pDescriptorSetImpl->descriptorSet);
-	if (result != VK_SUCCESS)
-	{
+	if (result != VK_SUCCESS) {
 		exit(1);
 	}
 	return { set, pDescriptorSetImpl };
@@ -378,55 +342,48 @@ void Renderer::WriteDescriptorSet(Renderer::DescriptorWriterParams& descriptorWr
 	VkDescriptorImageInfo imageInfos[64];
 	uint32_t imageInfoCounter = 0;
 
-	for (int i = 0; i < descriptorWriteParams.descriptorInfos.size(); i++)
-	{
+	for (int i = 0; i < descriptorWriteParams.descriptorInfos.size(); i++) {
 		Renderer::DescriptorWriterParams::DescriptorInfo& descriptorInfo = *descriptorWriteParams.descriptorInfos[i];
-		if (descriptorInfo.type == Renderer::DescriptorWriterParams::DescriptorInfo::UniformBuffer)
-		{
-			for (int j = 0; j < descriptorInfo.count; j++)
-			{
-				GpuMemoryImpl* pGpuMemoryImpl = reinterpret_cast<GpuMemoryImpl*>(descriptorInfo.pResources[j]);
+		if (descriptorInfo.type == Renderer::DescriptorWriterParams::DescriptorInfo::UniformBuffer) {
+			for (int j = 0; j < descriptorInfo.count; j++) {
+				GpuMemoryImpl* pGpuMemoryImpl	  = reinterpret_cast<GpuMemoryImpl*>(descriptorInfo.pResources[j]);
 				VkDescriptorBufferInfo bufferInfo = {};
-				bufferInfo.buffer = pGpuMemoryImpl->buffer;
-				bufferInfo.offset = 0;
-				bufferInfo.range = VK_WHOLE_SIZE;
-				bufferInfos[bufferInfoCounter++] = bufferInfo;
+				bufferInfo.buffer		  = pGpuMemoryImpl->buffer;
+				bufferInfo.offset		  = 0;
+				bufferInfo.range		  = VK_WHOLE_SIZE;
+				bufferInfos[bufferInfoCounter++]  = bufferInfo;
 			}
 			VkWriteDescriptorSet writeDescriptorSet = {};
-			writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-			writeDescriptorSet.dstSet = descriptorSetInterface.pDescriptorSetImpl->descriptorSet;
-			writeDescriptorSet.dstBinding = descriptorInfo.bindingNum;
-			writeDescriptorSet.dstArrayElement = 0;
-			writeDescriptorSet.descriptorCount = descriptorInfo.count;
-			writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-			writeDescriptorSet.pBufferInfo = bufferInfos + bufferInfoCounter - descriptorInfo.count;;
+			writeDescriptorSet.sType		= VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			writeDescriptorSet.dstSet		= descriptorSetInterface.pDescriptorSetImpl->descriptorSet;
+			writeDescriptorSet.dstBinding		= descriptorInfo.bindingNum;
+			writeDescriptorSet.dstArrayElement	= 0;
+			writeDescriptorSet.descriptorCount	= descriptorInfo.count;
+			writeDescriptorSet.descriptorType	= VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+			writeDescriptorSet.pBufferInfo		= bufferInfos + bufferInfoCounter - descriptorInfo.count;
+			;
 			writeDescriptorSets[i] = writeDescriptorSet;
-		}
-		else if (descriptorInfo.type == Renderer::DescriptorWriterParams::DescriptorInfo::Combined_Image_Sampler)
-		{
-			for (int j = 0; j < descriptorInfo.count; j++)
-			{
+		} else if (descriptorInfo.type == Renderer::DescriptorWriterParams::DescriptorInfo::Combined_Image_Sampler) {
+			for (int j = 0; j < descriptorInfo.count; j++) {
 				GpuTextureMemoryImpl* pGpuTextureMemoryImpl = reinterpret_cast<GpuTextureMemoryImpl*>(descriptorInfo.pResources[j]);
-				VkDescriptorImageInfo imageInfo = {};
-				imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-				imageInfo.imageView = pGpuTextureMemoryImpl->imageView;
-				imageInfo.sampler = pGpuTextureMemoryImpl->sampler;
-				imageInfos[imageInfoCounter++] = imageInfo;
+				VkDescriptorImageInfo imageInfo		    = {};
+				imageInfo.imageLayout			    = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+				imageInfo.imageView			    = pGpuTextureMemoryImpl->imageView;
+				imageInfo.sampler			    = pGpuTextureMemoryImpl->sampler;
+				imageInfos[imageInfoCounter++]		    = imageInfo;
 			}
 			VkWriteDescriptorSet writeDescriptorSet = {};
-			writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-			writeDescriptorSet.dstSet = descriptorSetInterface.pDescriptorSetImpl->descriptorSet;
-			writeDescriptorSet.dstBinding = descriptorInfo.bindingNum;
-			writeDescriptorSet.dstArrayElement = 0;
-			writeDescriptorSet.descriptorCount = descriptorInfo.count;
-			writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-			writeDescriptorSet.pImageInfo = imageInfos + imageInfoCounter - descriptorInfo.count;
-			writeDescriptorSets[i] = writeDescriptorSet;
+			writeDescriptorSet.sType		= VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			writeDescriptorSet.dstSet		= descriptorSetInterface.pDescriptorSetImpl->descriptorSet;
+			writeDescriptorSet.dstBinding		= descriptorInfo.bindingNum;
+			writeDescriptorSet.dstArrayElement	= 0;
+			writeDescriptorSet.descriptorCount	= descriptorInfo.count;
+			writeDescriptorSet.descriptorType	= VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+			writeDescriptorSet.pImageInfo		= imageInfos + imageInfoCounter - descriptorInfo.count;
+			writeDescriptorSets[i]			= writeDescriptorSet;
 		}
 	}
 	vkUpdateDescriptorSets(m_pImpl->logicalDevice, 2, writeDescriptorSets, 0, nullptr);
-
-
 }
 
 void Renderer::GetCpuMemoryPointer(Renderer::GpuBuffer& gpuMemory, void** ppData)
@@ -444,8 +401,6 @@ void Renderer::TransferStagingBufferToImage(GpuBuffer& stagingBuffer, GpuTexture
 	m_pImpl->TransferStagingBufferToImage(*stagingBuffer.pGpuMemoryImpl, *textureMemory.pGpuTextureMemoryImpl);
 }
 
-
-
 void Renderer::Initialize(InitializeParams& initializeParams)
 {
 	const bool isDebugMode = initializeParams.isDebugMode;
@@ -455,76 +410,70 @@ void Renderer::Initialize(InitializeParams& initializeParams)
 
 	m_pImpl = new RendererImpl();
 
-	// ‚Ü‚¸‚Í GLFW ‚Ì‰Šú‰»
+	// ã¾ãšã¯ GLFW ã®åˆæœŸåŒ–
 
-	// glfw ‚Ìİ’è
-	if (!glfwInit())
-	{
+	// glfw ã®è¨­å®š
+	if (!glfwInit()) {
 		logger << "fail to initialize glfw!!!" << std::endl;
 		exit(1);
 	}
 
-	// ƒEƒBƒ“ƒhƒEƒTƒCƒY‚Í•Ï‚¦‚ç‚ê‚È‚¢
+	// ã‚¦ã‚£ãƒ³ãƒ‰ã‚¦ã‚µã‚¤ã‚ºã¯å¤‰ãˆã‚‰ã‚Œãªã„
 	glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
-	if (glfwVulkanSupported() != GLFW_TRUE)
-	{
+	if (glfwVulkanSupported() != GLFW_TRUE) {
 		logger << "GLFW does not support vulkan!!!" << std::endl;
 		exit(1);
 	}
 
-	// glfw ‚É•K—v‚ÈƒCƒ“ƒXƒ^ƒ“ƒX‚ÌŠg’£‹@”\‚ğŒŸõ
+	// glfw ã«å¿…è¦ãªã‚¤ãƒ³ã‚¹ã‚¿ãƒ³ã‚¹ã®æ‹¡å¼µæ©Ÿèƒ½ã‚’æ¤œç´¢
 	uint32_t glfwExtensionCount;
 	const char** glfwExtensionNames = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
 	logger << "GLFW extensions count: " << glfwExtensionCount << std::endl;
-	for (int i = 0; i < glfwExtensionCount; i++)
-	{
+	for (int i = 0; i < glfwExtensionCount; i++) {
 		logger << i << " th Extension: " << glfwExtensionNames[i] << std::endl;
 	}
 
 	const uint32_t instanceExtensionCount = glfwExtensionCount + (isDebugMode ? 2 : 0);
 	const char* instanceExtensionNames[16];
-	if (isDebugMode)
-	{
+	if (isDebugMode) {
 		instanceExtensionNames[0] = VK_KHR_DISPLAY_EXTENSION_NAME;
 		instanceExtensionNames[1] = VK_KHR_SURFACE_EXTENSION_NAME;
 	}
-	for (int i = 0; i < glfwExtensionCount; i++)
-	{
+	for (int i = 0; i < glfwExtensionCount; i++) {
 		instanceExtensionNames[i + (isDebugMode ? 2 : 0)] = glfwExtensionNames[i];
 	}
 
 	logger << std::endl;
 
 	////////////////////
-	///instance‚Ìì¬///
+	///instanceã®ä½œæˆ///
 	////////////////////
 
-	VkApplicationInfo appInfo{};
-	appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-	appInfo.pNext = nullptr;			       //ƒŠƒ“ƒN‚ÌŸ‚Ì\‘¢‘Ì‚Í‚È‚µ
-	appInfo.pApplicationName = "Vulkan ƒAƒvƒŠƒP[ƒVƒ‡ƒ“ ƒeƒXƒg"; //ƒAƒvƒŠƒP[ƒVƒ‡ƒ“‚Ì–¼‘O‚ğŠi”[‚µ‚½ƒkƒ‹I’[•¶š—ñ‚Ö‚Ìƒ|ƒCƒ“ƒ^C‚¿‚È‚İ‚ÉASCII•¶š‚É‚¨‚¯‚é0‚Ì’l‚ÍCnull‚Å‚È‚­‚Änul‚ç‚µ‚¢
-	appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);	       //ƒAƒvƒŠƒP[ƒVƒ‡ƒ“‚Ìƒo[ƒWƒ‡ƒ“C
-	appInfo.pEngineName = nullptr;			       //g—p‚·‚éƒGƒ“ƒWƒ“‚Ì–¼‘O
-	appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
-	appInfo.apiVersion = VK_API_VERSION_1_2; //ƒAƒvƒŠƒP[ƒVƒ‡ƒ“‚ªŠú‘Ò‚·‚évulkan api‚Ìƒo[ƒWƒ‡ƒ“CÀs‚É•K—v‚ÈÅ¬‚Ìƒo[ƒWƒ‡ƒ“‚ğİ’è‚·‚é
+	VkApplicationInfo appInfo {};
+	appInfo.sType		   = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+	appInfo.pNext		   = nullptr;			       //ãƒªãƒ³ã‚¯ã®æ¬¡ã®æ§‹é€ ä½“ã¯ãªã—
+	appInfo.pApplicationName   = "Vulkan ã‚¢ãƒ—ãƒªã‚±ãƒ¼ã‚·ãƒ§ãƒ³ ãƒ†ã‚¹ãƒˆ"; //ã‚¢ãƒ—ãƒªã‚±ãƒ¼ã‚·ãƒ§ãƒ³ã®åå‰ã‚’æ ¼ç´ã—ãŸãƒŒãƒ«çµ‚ç«¯æ–‡å­—åˆ—ã¸ã®ãƒã‚¤ãƒ³ã‚¿ï¼Œã¡ãªã¿ã«ASCIIæ–‡å­—ã«ãŠã‘ã‚‹0ã®å€¤ã¯ï¼Œnullã§ãªãã¦nulã‚‰ã—ã„
+	appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);	       //ã‚¢ãƒ—ãƒªã‚±ãƒ¼ã‚·ãƒ§ãƒ³ã®ãƒãƒ¼ã‚¸ãƒ§ãƒ³ï¼Œ
+	appInfo.pEngineName	   = nullptr;			       //ä½¿ç”¨ã™ã‚‹ã‚¨ãƒ³ã‚¸ãƒ³ã®åå‰
+	appInfo.engineVersion	   = VK_MAKE_VERSION(1, 0, 0);
+	appInfo.apiVersion	   = VK_API_VERSION_1_2; //ã‚¢ãƒ—ãƒªã‚±ãƒ¼ã‚·ãƒ§ãƒ³ãŒæœŸå¾…ã™ã‚‹vulkan apiã®ãƒãƒ¼ã‚¸ãƒ§ãƒ³ï¼Œå®Ÿè¡Œã«å¿…è¦ãªæœ€å°ã®ãƒãƒ¼ã‚¸ãƒ§ãƒ³ã‚’è¨­å®šã™ã‚‹
 
-	VkInstanceCreateInfo createInfo{};
-	createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-	createInfo.pNext = nullptr; //ƒŠƒ“ƒN‚ÌŸ‚Ì\‘¢‘Ì‚Í‚È‚µ
-	createInfo.flags = 0;	      //
-	createInfo.pApplicationInfo = &appInfo;
-	createInfo.enabledLayerCount = 0;	      //—LŒø‚É‚·‚éƒCƒ“ƒXƒ^ƒ“ƒXƒŒƒCƒ„‚Ì”
-	createInfo.ppEnabledLayerNames = nullptr; //—LŒø‚É‚·‚éƒCƒ“ƒXƒ^ƒ“ƒXƒŒƒCƒ„‚Ì–¼‘O‚ÌƒxƒNƒ^(ƒkƒ‹I’[‚³‚ê‚½•¶š—ñ‚Ìƒ|ƒCƒ“ƒ^‚Ì”z—ñ)
-	createInfo.enabledExtensionCount = instanceExtensionCount;	      //Šg’£‹@”\‚Ì”
-	createInfo.ppEnabledExtensionNames = instanceExtensionNames; //Šg’£‹@”\‚Ì–¼‘O‚ÌƒxƒNƒ^
-
+	VkInstanceCreateInfo createInfo {};
+	createInfo.sType		   = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+	createInfo.pNext		   = nullptr; //ãƒªãƒ³ã‚¯ã®æ¬¡ã®æ§‹é€ ä½“ã¯ãªã—
+	createInfo.flags		   = 0;	      //
+	createInfo.pApplicationInfo	   = &appInfo;
+	createInfo.enabledLayerCount	   = 0;			     //æœ‰åŠ¹ã«ã™ã‚‹ã‚¤ãƒ³ã‚¹ã‚¿ãƒ³ã‚¹ãƒ¬ã‚¤ãƒ¤ã®æ•°
+	createInfo.ppEnabledLayerNames	   = nullptr;		     //æœ‰åŠ¹ã«ã™ã‚‹ã‚¤ãƒ³ã‚¹ã‚¿ãƒ³ã‚¹ãƒ¬ã‚¤ãƒ¤ã®åå‰ã®ãƒ™ã‚¯ã‚¿(ãƒŒãƒ«çµ‚ç«¯ã•ã‚ŒãŸæ–‡å­—åˆ—ã®ãƒã‚¤ãƒ³ã‚¿ã®é…åˆ—)
+	createInfo.enabledExtensionCount   = instanceExtensionCount; //æ‹¡å¼µæ©Ÿèƒ½ã®æ•°
+	createInfo.ppEnabledExtensionNames = instanceExtensionNames; //æ‹¡å¼µæ©Ÿèƒ½ã®åå‰ã®ãƒ™ã‚¯ã‚¿
 
 	//////////////////////////////////
-	///ƒCƒ“ƒXƒ^ƒ“ƒX‚ÌƒŒƒCƒ„‚Ì—LŒø‰»///
+	///ã‚¤ãƒ³ã‚¹ã‚¿ãƒ³ã‚¹ã®ãƒ¬ã‚¤ãƒ¤ã®æœ‰åŠ¹åŒ–///
 	//////////////////////////////////
 
-	// ƒfƒoƒbƒOƒ‚[ƒh‚Ìê‡‚ÍVK_LAYER_KHRONOS_validation‚ğ—LŒø‰»‚·‚éD
+	// ãƒ‡ãƒãƒƒã‚°ãƒ¢ãƒ¼ãƒ‰ã®å ´åˆã¯VK_LAYER_KHRONOS_validationã‚’æœ‰åŠ¹åŒ–ã™ã‚‹ï¼
 	constexpr const char* LAYER_NAME = "VK_LAYER_KHRONOS_validation";
 
 	uint32_t numILayer;
@@ -535,7 +484,7 @@ void Renderer::Initialize(InitializeParams& initializeParams)
 	}
 	logger << "Instance Layer size: " << numILayer << std::endl;
 	VkLayerProperties* pILPs = new VkLayerProperties[numILayer];
-	result = vkEnumerateInstanceLayerProperties(&numILayer, pILPs);
+	result			 = vkEnumerateInstanceLayerProperties(&numILayer, pILPs);
 	if (result != VK_SUCCESS) {
 		logger << "failed to get properties of ILayer!!!" << std::endl;
 		exit(1);
@@ -550,13 +499,13 @@ void Renderer::Initialize(InitializeParams& initializeParams)
 		logger << "Impl Version: " << VK_VERSION_MAJOR(pILPs[i].implementationVersion) << "." << VK_VERSION_MINOR(pILPs[i].implementationVersion) << std::endl;
 		logger << "description: " << pILPs[i].description << std::endl;
 
-		//—LŒø‰»‚·‚éƒŒƒCƒ„‚Å‚ ‚é‚©
+		//æœ‰åŠ¹åŒ–ã™ã‚‹ãƒ¬ã‚¤ãƒ¤ã§ã‚ã‚‹ã‹
 		if (std::strcmp(pILPs[i].layerName, LAYER_NAME) == 0)
 			Layerindex = i;
 	}
 	logger << std::endl;
 
-	//—LŒø‰»‚·‚éƒŒƒCƒ„‚ª‘¶İ‚µ‚È‚¢‚Æ‚«
+	//æœ‰åŠ¹åŒ–ã™ã‚‹ãƒ¬ã‚¤ãƒ¤ãŒå­˜åœ¨ã—ãªã„ã¨ã
 	if (Layerindex == -1) {
 		logger << LAYER_NAME << " is not available!!!" << std::endl;
 		exit(1);
@@ -565,19 +514,18 @@ void Renderer::Initialize(InitializeParams& initializeParams)
 	const char* ppILT[1];
 	//ppILT[0] = LAYER_NAME;
 	ppILT[0] = pILPs[Layerindex].layerName;
-	//‚Ç‚¿‚ç‚Å‚à‚æ‚¢‚Ì‚¾‚ªCcreateInfo‚ÌƒtƒB[ƒ‹ƒh‚É‚Í‚±‚Ì‚Ü‚Üg‚¦‚é‚Æ‚¢‚¤‚±‚ÆD
+	//ã©ã¡ã‚‰ã§ã‚‚ã‚ˆã„ã®ã ãŒï¼ŒcreateInfoã®ãƒ•ã‚£ãƒ¼ãƒ«ãƒ‰ã«ã¯ã“ã®ã¾ã¾ä½¿ãˆã‚‹ã¨ã„ã†ã“ã¨ï¼
 
-	if (isDebugMode)
-	{
-		createInfo.enabledLayerCount = 1;
+	if (isDebugMode) {
+		createInfo.enabledLayerCount   = 1;
 		createInfo.ppEnabledLayerNames = ppILT;
 	}
 
 	//////////////
-	///Šg’£‹@”\///
+	///æ‹¡å¼µæ©Ÿèƒ½///
 	//////////////
 
-	//‚±‚±‚Å‚Íˆê——‚ğo—Í‚·‚é‚¾‚¯
+	//ã“ã“ã§ã¯ä¸€è¦§ã‚’å‡ºåŠ›ã™ã‚‹ã ã‘
 
 	uint32_t numIExtension;
 	result = vkEnumerateInstanceExtensionProperties(nullptr, &numIExtension, nullptr);
@@ -587,7 +535,7 @@ void Renderer::Initialize(InitializeParams& initializeParams)
 	}
 	logger << "Instance Extension size: " << numIExtension << std::endl;
 	VkExtensionProperties* pIEPs = new VkExtensionProperties[numIExtension];
-	result = vkEnumerateInstanceExtensionProperties(nullptr, &numIExtension, pIEPs);
+	result			     = vkEnumerateInstanceExtensionProperties(nullptr, &numIExtension, pIEPs);
 	if (result != VK_SUCCESS) {
 		logger << "failt to get properties of IExtension!!!" << std::endl;
 		exit(1);
@@ -601,11 +549,11 @@ void Renderer::Initialize(InitializeParams& initializeParams)
 	}
 	logger << std::endl;
 
-	//ƒCƒ“ƒXƒ^ƒ“ƒX‚Ìì¬
+	//ã‚¤ãƒ³ã‚¹ã‚¿ãƒ³ã‚¹ã®ä½œæˆ
 
 	VkInstance instance;
 	result = vkCreateInstance(&createInfo, nullptr, &instance);
-	// ‘æ“ñˆø”‚Å‚ÍƒAƒvƒŠ‘¤‚Å—pˆÓ‚µ‚½ VkAllocationCallbacks ‚ğ“n‚·‚±‚Æ‚ª‚Å‚«‚éDnullptr ‚ğ“n‚·‚ÆVulkanÀ‘•‚ÌƒAƒƒP[ƒ^‚ğg‚¤
+	// ç¬¬äºŒå¼•æ•°ã§ã¯ã‚¢ãƒ—ãƒªå´ã§ç”¨æ„ã—ãŸ VkAllocationCallbacks ã‚’æ¸¡ã™ã“ã¨ãŒã§ãã‚‹ï¼nullptr ã‚’æ¸¡ã™ã¨Vulkanå®Ÿè£…ã®ã‚¢ãƒ­ã‚±ãƒ¼ã‚¿ã‚’ä½¿ã†
 
 	if (result != VK_SUCCESS) {
 		logger << "failed to create instance!!!" << std::endl;
@@ -613,7 +561,7 @@ void Renderer::Initialize(InitializeParams& initializeParams)
 	}
 
 	//////////////////
-	///•¨—ƒfƒoƒCƒX///
+	///ç‰©ç†ãƒ‡ãƒã‚¤ã‚¹///
 	//////////////////
 
 	uint32_t numPD;
@@ -629,20 +577,19 @@ void Renderer::Initialize(InitializeParams& initializeParams)
 	}
 
 	VkPhysicalDevice* pPDs = new VkPhysicalDevice[numPD];
-	result = vkEnumeratePhysicalDevices(instance, &numPD, pPDs);
+	result		       = vkEnumeratePhysicalDevices(instance, &numPD, pPDs);
 	if (result != VK_SUCCESS) {
 		logger << "failed to check physical devices!!!" << std::endl;
 		exit(1);
 	}
 
 	const int maxPdSize = 32;
-	if (numPD > maxPdSize)
-	{
+	if (numPD > maxPdSize) {
 		logger << "numPD is greater than " << maxPdSize << " !!!" << std::endl;
 		exit(1);
 	}
 
-	//Še•¨—ƒfƒoƒCƒX‚²‚Æ‚Ìî•ñ‚ğŠi”[‚·‚é—Ìˆæ‚ğŠm•Û
+	//å„ç‰©ç†ãƒ‡ãƒã‚¤ã‚¹ã”ã¨ã®æƒ…å ±ã‚’æ ¼ç´ã™ã‚‹é ˜åŸŸã‚’ç¢ºä¿
 	VkPhysicalDeviceProperties pPDPs[maxPdSize];
 	VkPhysicalDeviceFeatures pPDFs[maxPdSize];
 	uint32_t pNumLPs[maxPdSize];
@@ -651,27 +598,27 @@ void Renderer::Initialize(InitializeParams& initializeParams)
 	uint32_t pNumQFPs[maxPdSize];
 	VkQueueFamilyProperties* ppQFPs[maxPdSize];
 
-	//‘I‘ğ‚·‚é•¨—ƒfƒoƒCƒX
+	//é¸æŠã™ã‚‹ç‰©ç†ãƒ‡ãƒã‚¤ã‚¹
 	int32_t physical_device_index = -1;
-	//‘I‘ğ‚·‚éƒLƒ…[ƒtƒ@ƒ~ƒŠ
+	//é¸æŠã™ã‚‹ã‚­ãƒ¥ãƒ¼ãƒ•ã‚¡ãƒŸãƒª
 	int32_t queue_family_index = -1;
-	// ‘I‘ğ‚³‚ê‚½ƒLƒ…[ƒtƒ@ƒ~ƒŠ‚ªƒTƒ|[ƒg‚·‚éƒLƒ…[‚Ì”
+	// é¸æŠã•ã‚ŒãŸã‚­ãƒ¥ãƒ¼ãƒ•ã‚¡ãƒŸãƒªãŒã‚µãƒãƒ¼ãƒˆã™ã‚‹ã‚­ãƒ¥ãƒ¼ã®æ•°
 	int32_t queue_family_queue_count = -1;
-	// ‘I‘ğ‚³‚ê‚½ƒƒ‚ƒŠƒ^ƒCƒv
-	int32_t memory_type_index = -1;
+	// é¸æŠã•ã‚ŒãŸãƒ¡ãƒ¢ãƒªã‚¿ã‚¤ãƒ—
+	int32_t memory_type_index	     = -1;
 	int32_t memory_type_index_host_local = -1;
 
-	//Še•¨—ƒfƒoƒCƒX‚É‘Î‚µ‚Ä
+	//å„ç‰©ç†ãƒ‡ãƒã‚¤ã‚¹ã«å¯¾ã—ã¦
 	for (uint32_t i = 0; i < numPD; i++) {
-		//ƒvƒƒpƒeƒB‚ğæ“¾
+		//ãƒ—ãƒ­ãƒ‘ãƒ†ã‚£ã‚’å–å¾—
 		vkGetPhysicalDeviceProperties(pPDs[i], &pPDPs[i]);
 
-		//VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU ‚Å‚ ‚é‚à‚Ì‚ğ‘I‘ğ
+		//VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU ã§ã‚ã‚‹ã‚‚ã®ã‚’é¸æŠ
 		if (physical_device_index == -1 && pPDPs[i].deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
 			physical_device_index = i;
 		}
 
-		//ƒvƒƒpƒeƒB‚ğo—Í
+		//ãƒ—ãƒ­ãƒ‘ãƒ†ã‚£ã‚’å‡ºåŠ›
 		logger << std::endl;
 		logger << "Phsycal Device[" << i << "]";
 		if (physical_device_index == int32_t(i))
@@ -680,10 +627,9 @@ void Renderer::Initialize(InitializeParams& initializeParams)
 			logger << std::endl;
 		logger << "Name: " << pPDPs[i].deviceName << std::endl;
 		logger << "Suported Vulkan Version: " << VK_VERSION_MAJOR(pPDPs[i].apiVersion) << "." << VK_VERSION_MINOR(pPDPs[i].apiVersion) << std::endl;
-		//‚È‚º‚©VK_API_VERSION_VARIANT‚ª‘¶İ‚µ‚È‚¢
+		//ãªãœã‹VK_API_VERSION_VARIANTãŒå­˜åœ¨ã—ãªã„
 		logger << "Device Type: ";
-		switch (pPDPs[i].deviceType)
-		{
+		switch (pPDPs[i].deviceType) {
 		case VK_PHYSICAL_DEVICE_TYPE_OTHER:
 			logger << "VK_PHYSICAL_DEVICE_TYPE_OTHER" << std::endl;
 			break;
@@ -700,48 +646,42 @@ void Renderer::Initialize(InitializeParams& initializeParams)
 			logger << "VK_PHYSICAL_DEVICE_TYPE_CPU" << std::endl;
 			break;
 		}
-		//ƒIƒvƒVƒ‡ƒ“‹@”\‚Ìî•ñ‚ğo—Í
+		//ã‚ªãƒ—ã‚·ãƒ§ãƒ³æ©Ÿèƒ½ã®æƒ…å ±ã‚’å‡ºåŠ›
 		vkGetPhysicalDeviceFeatures(pPDs[i], &pPDFs[i]);
-		//‚±‚±‚Å‚ÍƒIƒvƒVƒ‡ƒ“‚Ì‹@”\‚É‚ÍG‚ê‚È‚¢
+		//ã“ã“ã§ã¯ã‚ªãƒ—ã‚·ãƒ§ãƒ³ã®æ©Ÿèƒ½ã«ã¯è§¦ã‚Œãªã„
 
-		// ƒfƒoƒCƒX‚ÌƒŒƒCƒ„[‚ğ—ñ‹“
+		// ãƒ‡ãƒã‚¤ã‚¹ã®ãƒ¬ã‚¤ãƒ¤ãƒ¼ã‚’åˆ—æŒ™
 		vkEnumerateDeviceLayerProperties(pPDs[i], &pNumLPs[i], nullptr);
 		ppLPs[i] = new VkLayerProperties[pNumLPs[i]];
 		vkEnumerateDeviceLayerProperties(pPDs[i], &pNumLPs[i], ppLPs[i]);
-		for (uint32_t j = 0; j < pNumLPs[i]; j++)
-		{
-			// VK_LAYER_KHRONOS_validation ‚ª‚È‚¢‚Æ¢‚é‚ªCŠm”F‚µ‚Ä‚È‚¢
+		for (uint32_t j = 0; j < pNumLPs[i]; j++) {
+			// VK_LAYER_KHRONOS_validation ãŒãªã„ã¨å›°ã‚‹ãŒï¼Œç¢ºèªã—ã¦ãªã„
 		}
 
-		//ƒƒ‚ƒŠƒ^ƒCƒv‚Ìî•ñ‚ğo—Í
+		//ãƒ¡ãƒ¢ãƒªã‚¿ã‚¤ãƒ—ã®æƒ…å ±ã‚’å‡ºåŠ›
 		vkGetPhysicalDeviceMemoryProperties(pPDs[i], &pPDMPs[i]);
 
 		logger << "MemoryHeap Count: " << pPDMPs[i].memoryHeapCount << std::endl;
-		for (uint32_t j = 0; j < pPDMPs[i].memoryHeapCount; j++)
-		{
+		for (uint32_t j = 0; j < pPDMPs[i].memoryHeapCount; j++) {
 			logger << "MemoryHeap[" << j << "]" << std::endl;
 			logger << "\tHeapSize: " << pPDMPs[i].memoryHeaps[j].size / (1024 * 1024) << " MB" << std::endl;
 		}
 
 		logger << "MemoryType Count: " << pPDMPs[i].memoryTypeCount << std::endl;
-		//Šeƒƒ‚ƒŠƒ^ƒCƒv‚É‘Î‚µ‚Ä
+		//å„ãƒ¡ãƒ¢ãƒªã‚¿ã‚¤ãƒ—ã«å¯¾ã—ã¦
 		for (uint32_t j = 0; j < pPDMPs[i].memoryTypeCount; j++) {
-			// memorytype ‚Ì‘I‘ğ
-			if (physical_device_index == int32_t(i) && memory_type_index == -1)
-			{
+			// memorytype ã®é¸æŠ
+			if (physical_device_index == int32_t(i) && memory_type_index == -1) {
 				constexpr uint32_t requiredFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-				if (pPDMPs[i].memoryTypes[j].propertyFlags & requiredFlags)
-				{
-					memory_type_index = j;
+				if (pPDMPs[i].memoryTypes[j].propertyFlags & requiredFlags) {
+					memory_type_index	   = j;
 					m_pImpl->memory_type_index = j;
 				}
 			}
-			if (physical_device_index == int32_t(i) && memory_type_index_host_local == -1)
-			{
+			if (physical_device_index == int32_t(i) && memory_type_index_host_local == -1) {
 				constexpr uint32_t requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-				if (pPDMPs[i].memoryTypes[j].propertyFlags & requiredFlags)
-				{
-					memory_type_index_host_local = j;
+				if (pPDMPs[i].memoryTypes[j].propertyFlags & requiredFlags) {
+					memory_type_index_host_local	      = j;
 					m_pImpl->memory_type_index_host_local = j;
 				}
 			}
@@ -755,28 +695,28 @@ void Renderer::Initialize(InitializeParams& initializeParams)
 				logger << std::endl;
 
 			logger << "\tHeap Index: " << pPDMPs[i].memoryTypes[j].heapIndex << std::endl;
-			// ƒƒ‚ƒŠ‚ªƒfƒoƒCƒX‚Éƒ[ƒJƒ‹‚Å‚ ‚é‚©‚Ç‚¤‚©
+			// ãƒ¡ãƒ¢ãƒªãŒãƒ‡ãƒã‚¤ã‚¹ã«ãƒ­ãƒ¼ã‚«ãƒ«ã§ã‚ã‚‹ã‹ã©ã†ã‹
 			logger << "\tVK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT: " << ((VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT & pPDMPs[i].memoryTypes[j].propertyFlags) ? "True" : "False") << std::endl;
-			// ƒƒ‚ƒŠŠ„‚è“–‚Ä‚ªƒzƒXƒg‚©‚ç’¼ÚƒAƒNƒZƒX‚Å‚«‚é‚©i‚Å‚«‚È‚¯‚ê‚ÎƒfƒoƒCƒXê—pj
+			// ãƒ¡ãƒ¢ãƒªå‰²ã‚Šå½“ã¦ãŒãƒ›ã‚¹ãƒˆã‹ã‚‰ç›´æ¥ã‚¢ã‚¯ã‚»ã‚¹ã§ãã‚‹ã‹ï¼ˆã§ããªã‘ã‚Œã°ãƒ‡ãƒã‚¤ã‚¹å°‚ç”¨ï¼‰
 			logger << "\tVK_MEMORY_PROPERTY_HOST_VISIBLE_BIT: " << ((VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT & pPDMPs[i].memoryTypes[j].propertyFlags) ? "True" : "False") << std::endl;
-			// ƒzƒXƒg‚ÆƒfƒoƒCƒX‚Å“¯‚ÉƒAƒNƒZƒX‚·‚é‚Æ‚«C‚»‚ÌƒAƒNƒZƒX‚ª“ñ‚Â‚ÌŠÔ‚ÅƒRƒq[ƒŒƒ“ƒg‚Å‚ ‚é‚±‚Æi‚»‚¤‚Å‚È‚¢‚È‚çƒLƒƒƒbƒVƒ…‚ğ–¾¦“I‚Éƒtƒ‰ƒbƒVƒ…‚·‚é•K—v‚ª‚ ‚é‚©‚àj
+			// ãƒ›ã‚¹ãƒˆã¨ãƒ‡ãƒã‚¤ã‚¹ã§åŒæ™‚ã«ã‚¢ã‚¯ã‚»ã‚¹ã™ã‚‹ã¨ãï¼Œãã®ã‚¢ã‚¯ã‚»ã‚¹ãŒäºŒã¤ã®é–“ã§ã‚³ãƒ’ãƒ¼ãƒ¬ãƒ³ãƒˆã§ã‚ã‚‹ã“ã¨ï¼ˆãã†ã§ãªã„ãªã‚‰ã‚­ãƒ£ãƒƒã‚·ãƒ¥ã‚’æ˜ç¤ºçš„ã«ãƒ•ãƒ©ãƒƒã‚·ãƒ¥ã™ã‚‹å¿…è¦ãŒã‚ã‚‹ã‹ã‚‚ï¼‰
 			logger << "\tVK_MEMORY_PROPERTY_HOST_COHERENT_BIT: " << ((VK_MEMORY_PROPERTY_HOST_COHERENT_BIT & pPDMPs[i].memoryTypes[j].propertyFlags) ? "True" : "False") << std::endl;
-			// ƒzƒXƒg‚ÅƒLƒƒƒbƒVƒ…‚³‚ê‚é‚©‚Ç‚¤‚©
+			// ãƒ›ã‚¹ãƒˆã§ã‚­ãƒ£ãƒƒã‚·ãƒ¥ã•ã‚Œã‚‹ã‹ã©ã†ã‹
 			logger << "\tVK_MEMORY_PROPERTY_HOST_CACHED_BIT: " << ((VK_MEMORY_PROPERTY_HOST_CACHED_BIT & pPDMPs[i].memoryTypes[j].propertyFlags) ? "True" : "False") << std::endl;
-			// ƒfƒoƒCƒX‚©‚ç‚µ‚©ƒAƒNƒZƒX‚Å‚«‚È‚¢‚©‚Ç‚¤‚©C‚±‚ê‚ª^‚Ì‚Æ‚«C VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT ‚Í‹U‚Å‚È‚­‚Ä‚Í‚È‚ç‚È‚¢
+			// ãƒ‡ãƒã‚¤ã‚¹ã‹ã‚‰ã—ã‹ã‚¢ã‚¯ã‚»ã‚¹ã§ããªã„ã‹ã©ã†ã‹ï¼Œã“ã‚ŒãŒçœŸã®ã¨ãï¼Œ VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT ã¯å½ã§ãªãã¦ã¯ãªã‚‰ãªã„
 			logger << "\tVK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT: " << ((VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT & pPDMPs[i].memoryTypes[j].propertyFlags) ? "True" : "False") << std::endl;
 		}
 
-		//ƒLƒ…[ƒtƒ@ƒ~ƒŠ‚Ìî•ñ‚ğo—Í
+		//ã‚­ãƒ¥ãƒ¼ãƒ•ã‚¡ãƒŸãƒªã®æƒ…å ±ã‚’å‡ºåŠ›
 		vkGetPhysicalDeviceQueueFamilyProperties(pPDs[i], &pNumQFPs[i], nullptr);
 		ppQFPs[i] = new VkQueueFamilyProperties[pNumQFPs[i]];
 		vkGetPhysicalDeviceQueueFamilyProperties(pPDs[i], &pNumQFPs[i], ppQFPs[i]);
 		logger << "Queue Family Property Count: " << pNumQFPs[i] << std::endl;
-		//ŠeƒLƒ…[ƒtƒ@ƒ~ƒŠ‚É‘Î‚µ‚Ä
+		//å„ã‚­ãƒ¥ãƒ¼ãƒ•ã‚¡ãƒŸãƒªã«å¯¾ã—ã¦
 		for (uint32_t j = 0; j < pNumQFPs[i]; j++) {
 
-			//‘I‘ğ‚³‚ê‚½•¨—ƒfƒoƒCƒX‚Ìê‡
-			//Graphics Operation‚ªg‚¦‚éQueue Family‚ğ‘I‘ğ
+			//é¸æŠã•ã‚ŒãŸç‰©ç†ãƒ‡ãƒã‚¤ã‚¹ã®å ´åˆ
+			//Graphics OperationãŒä½¿ãˆã‚‹Queue Familyã‚’é¸æŠ
 			if (physical_device_index == int32_t(i) && queue_family_index == -1 && (ppQFPs[i][j].queueFlags & VK_QUEUE_GRAPHICS_BIT)) {
 				queue_family_index = j;
 			}
@@ -786,93 +726,86 @@ void Renderer::Initialize(InitializeParams& initializeParams)
 				logger << " <= Select This" << std::endl;
 			else
 				logger << std::endl;
-			//ƒLƒ…[‚Ì”\—Í
-			// ƒOƒ‰ƒtƒBƒbƒNƒX‘€ì
+			//ã‚­ãƒ¥ãƒ¼ã®èƒ½åŠ›
+			// ã‚°ãƒ©ãƒ•ã‚£ãƒƒã‚¯ã‚¹æ“ä½œ
 			logger << "\tGraphics Operation: " << ((ppQFPs[i][j].queueFlags & VK_QUEUE_GRAPHICS_BIT) ? "True" : "False") << std::endl;
-			// ƒRƒ“ƒsƒ…[ƒg‘€ì
+			// ã‚³ãƒ³ãƒ”ãƒ¥ãƒ¼ãƒˆæ“ä½œ
 			logger << "\tCompute Operation: " << ((ppQFPs[i][j].queueFlags & VK_QUEUE_COMPUTE_BIT) ? "True" : "False") << std::endl;
-			// ƒoƒbƒtƒ@‚Æ‚©ƒCƒ[ƒW‚Ì“]‘—‘€ì
+			// ãƒãƒƒãƒ•ã‚¡ã¨ã‹ã‚¤ãƒ¡ãƒ¼ã‚¸ã®è»¢é€æ“ä½œ
 			logger << "\tTransfer Operation: " << ((ppQFPs[i][j].queueFlags & VK_QUEUE_TRANSFER_BIT) ? "True" : "False") << std::endl;
-			// ƒXƒp[ƒXƒoƒCƒ“ƒfƒBƒ“ƒOi‚æ‚­‚í‚©‚ç‚ñj
+			// ã‚¹ãƒ‘ãƒ¼ã‚¹ãƒã‚¤ãƒ³ãƒ‡ã‚£ãƒ³ã‚°ï¼ˆã‚ˆãã‚ã‹ã‚‰ã‚“ï¼‰
 			logger << "\tSparse Binding Operation: " << ((ppQFPs[i][j].queueFlags & VK_QUEUE_SPARSE_BINDING_BIT) ? "True" : "False") << std::endl;
-			//ƒtƒ@ƒ~ƒŠ“à‚ÌƒLƒ…[‚Ì”
+			//ãƒ•ã‚¡ãƒŸãƒªå†…ã®ã‚­ãƒ¥ãƒ¼ã®æ•°
 			logger << "\tQueueCount: " << ppQFPs[i][j].queueCount << std::endl;
-			if (physical_device_index == int32_t(i) && queue_family_index == int32_t(j))
-			{
+			if (physical_device_index == int32_t(i) && queue_family_index == int32_t(j)) {
 				queue_family_queue_count = ppQFPs[i][j].queueCount;
 			}
-			//‚»‚Ì‘¼
+			//ãã®ä»–
 			logger << "\tTimestampValid: " << ppQFPs[i][j].timestampValidBits << std::endl;
 			logger << "\tMinImageTimestampGranularity: "
-				<< ppQFPs[i][j].minImageTransferGranularity.width << ", "
-				<< ppQFPs[i][j].minImageTransferGranularity.height << ", "
-				<< ppQFPs[i][j].minImageTransferGranularity.depth << std::endl;
+			       << ppQFPs[i][j].minImageTransferGranularity.width << ", "
+			       << ppQFPs[i][j].minImageTransferGranularity.height << ", "
+			       << ppQFPs[i][j].minImageTransferGranularity.depth << std::endl;
 		}
 	}
 	logger << std::endl;
 
-	// GLFW ‚ğg‚¤‚É‚ ‚½‚è image presentation ‚ªg‚¦‚é‚©‚Ç‚¤‚©‚Ìƒ`ƒFƒbƒNi•¨—ƒfƒoƒCƒX‚ÆƒLƒ…[ƒtƒ@ƒ~ƒŠj
-	if (!glfwGetPhysicalDevicePresentationSupport(instance, pPDs[physical_device_index], queue_family_index))
-	{
+	// GLFW ã‚’ä½¿ã†ã«ã‚ãŸã‚Š image presentation ãŒä½¿ãˆã‚‹ã‹ã©ã†ã‹ã®ãƒã‚§ãƒƒã‚¯ï¼ˆç‰©ç†ãƒ‡ãƒã‚¤ã‚¹ã¨ã‚­ãƒ¥ãƒ¼ãƒ•ã‚¡ãƒŸãƒªï¼‰
+	if (!glfwGetPhysicalDevicePresentationSupport(instance, pPDs[physical_device_index], queue_family_index)) {
 		logger << "The selected physical device and queue family does not support image presentation" << std::endl;
 		exit(1);
 	}
 
-	//˜_—ƒfƒoƒCƒX‚Ìì¬
+	//è«–ç†ãƒ‡ãƒã‚¤ã‚¹ã®ä½œæˆ
 
 	VkDeviceQueueCreateInfo DQCInfo;
-	DQCInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-	DQCInfo.pNext = nullptr; // Šg’£‹@”\‚ğg‚í‚È‚¢‚Ì‚Ånull
-	DQCInfo.flags = 0;		    //Œ»İ‚Ìversion‚Å‚Í‚±‚Ì‘®«‚Íg‚í‚ê‚È‚¢
-	DQCInfo.queueFamilyIndex = queue_family_index; //g—p‚·‚éƒLƒ…[ƒtƒ@ƒ~ƒŠ‚Ìw’èCvkGetPhysicalDeviceQueueFamilyProperties‚Å“¾‚ç‚ê‚éî•ñ‚ğ‚à‚Æ‚ÉŒˆ‚ß‚éD
-	DQCInfo.queueCount = queue_family_queue_count;		    //g‚¤ƒLƒ…[‚Ì”C“–ŠYƒLƒ…[ƒtƒ@ƒ~ƒŠ‚ª‚±‚Ì”‚ÌƒLƒ…[‚ğg‚¦‚é•K—v‚ª‚ ‚éD
+	DQCInfo.sType		    = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+	DQCInfo.pNext		    = nullptr;			// æ‹¡å¼µæ©Ÿèƒ½ã‚’ä½¿ã‚ãªã„ã®ã§null
+	DQCInfo.flags		    = 0;			//ç¾åœ¨ã®versionã§ã¯ã“ã®å±æ€§ã¯ä½¿ã‚ã‚Œãªã„
+	DQCInfo.queueFamilyIndex    = queue_family_index;	//ä½¿ç”¨ã™ã‚‹ã‚­ãƒ¥ãƒ¼ãƒ•ã‚¡ãƒŸãƒªã®æŒ‡å®šï¼ŒvkGetPhysicalDeviceQueueFamilyPropertiesã§å¾—ã‚‰ã‚Œã‚‹æƒ…å ±ã‚’ã‚‚ã¨ã«æ±ºã‚ã‚‹ï¼
+	DQCInfo.queueCount	    = queue_family_queue_count; //ä½¿ã†ã‚­ãƒ¥ãƒ¼ã®æ•°ï¼Œå½“è©²ã‚­ãƒ¥ãƒ¼ãƒ•ã‚¡ãƒŸãƒªãŒã“ã®æ•°ã®ã‚­ãƒ¥ãƒ¼ã‚’ä½¿ãˆã‚‹å¿…è¦ãŒã‚ã‚‹ï¼
 	float* queuePrioritiesArray = new float[queue_family_queue_count];
-	for (uint32_t i = 0; i < queue_family_queue_count; i++)
-	{
+	for (uint32_t i = 0; i < queue_family_queue_count; i++) {
 		queuePrioritiesArray[i] = 1.0f;
 	}
-	DQCInfo.pQueuePriorities = queuePrioritiesArray; //‚»‚ê‚¼‚ê‚ÌƒLƒ…[‚É‘—‚ç‚ê‚éì‹Æ‚Ì—Dæ“x(0.0ˆÈã1.0ˆÈ‰º‚ÌfloatŒ^)‚ğŠi”[‚·‚é”z—ñ‚ğ—^‚¦‚éDnullptr‚Æ‚·‚é‚Æ‚·‚×‚Ä“¯‚¶‚É‚·‚éD
-	//pQueuePriorities‚Ì‰ğß‚³‚ê‚é—Dæ‡ˆÊ‚Ì’iŠK‚ÍCvkGetPhysicalDeviceQueueFamilyProperties‚Å“¾‚ç‚ê‚éVkPhysicalDEviceLimits‚ÌdiscreteQueuePrioritiesƒtƒB[ƒ‹ƒh‚ÅŠm”F‚Å‚«‚é(2’iŠK‚È‚Ç)D
+	DQCInfo.pQueuePriorities = queuePrioritiesArray; //ãã‚Œãã‚Œã®ã‚­ãƒ¥ãƒ¼ã«é€ã‚‰ã‚Œã‚‹ä½œæ¥­ã®å„ªå…ˆåº¦(0.0ä»¥ä¸Š1.0ä»¥ä¸‹ã®floatå‹)ã‚’æ ¼ç´ã™ã‚‹é…åˆ—ã‚’ä¸ãˆã‚‹ï¼nullptrã¨ã™ã‚‹ã¨ã™ã¹ã¦åŒã˜ã«ã™ã‚‹ï¼
+	//pQueuePrioritiesã®è§£é‡ˆã•ã‚Œã‚‹å„ªå…ˆé †ä½ã®æ®µéšã¯ï¼ŒvkGetPhysicalDeviceQueueFamilyPropertiesã§å¾—ã‚‰ã‚Œã‚‹VkPhysicalDEviceLimitsã®discreteQueuePrioritiesãƒ•ã‚£ãƒ¼ãƒ«ãƒ‰ã§ç¢ºèªã§ãã‚‹(2æ®µéšãªã©)ï¼
 
-	// Šg’£‹@”\‚Ì—ñ‹“
+	// æ‹¡å¼µæ©Ÿèƒ½ã®åˆ—æŒ™
 	uint32_t suppurtedDeviceExtensionCount;
 	result = vkEnumerateDeviceExtensionProperties(pPDs[physical_device_index], nullptr, &suppurtedDeviceExtensionCount, nullptr);
-	if (result != VK_SUCCESS)
-	{
+	if (result != VK_SUCCESS) {
 		logger << "Fail to get number of device extension." << std::endl;
 		exit(1);
 	}
 	VkExtensionProperties* supportedDeviceExtensions = new VkExtensionProperties[suppurtedDeviceExtensionCount];
-	result = vkEnumerateDeviceExtensionProperties(pPDs[physical_device_index], nullptr, &suppurtedDeviceExtensionCount, supportedDeviceExtensions);
-	if (result != VK_SUCCESS)
-	{
+	result						 = vkEnumerateDeviceExtensionProperties(pPDs[physical_device_index], nullptr, &suppurtedDeviceExtensionCount, supportedDeviceExtensions);
+	if (result != VK_SUCCESS) {
 		logger << "Fail to get device extension." << std::endl;
 		exit(1);
 	}
 
-	for (int i = 0; i < suppurtedDeviceExtensionCount; i++)
-	{
+	for (int i = 0; i < suppurtedDeviceExtensionCount; i++) {
 		logger << "Extension of PhysicalDevice " << i << " th extension" << std::endl;
 		logger << supportedDeviceExtensions->extensionName << " Version: " << supportedDeviceExtensions->specVersion << std::endl;
 	}
 
-	// •K—v‚ÈŠg’£‹@”\
 	const uint32_t deviceExtensionCount = 1;
-	const char** deviceExtensionName = new const char* [deviceExtensionCount];
-	deviceExtensionName[0] = VK_KHR_SWAPCHAIN_EXTENSION_NAME; // ƒXƒƒbƒvƒ`ƒF[ƒ“ì¬‚É•K—v‚ÈŠg’£‚Ì‚½‚ß‚Ìƒ}ƒNƒ
+	const char** deviceExtensionName    = new const char*[deviceExtensionCount];
+	deviceExtensionName[0]		    = VK_KHR_SWAPCHAIN_EXTENSION_NAME; // ã‚¹ãƒ¯ãƒƒãƒ—ãƒã‚§ãƒ¼ãƒ³ä½œæˆã«å¿…è¦ãªæ‹¡å¼µã®ãŸã‚ã®ãƒã‚¯ãƒ­
 
 	VkDeviceCreateInfo DCInfo;
-	DCInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-	DCInfo.pNext = nullptr;
-	DCInfo.flags = 0; //Œ»İ‚Ìversion‚Å‚Í‚±‚Ì‘®«‚Íg‚í‚ê‚È‚¢
-	DCInfo.queueCreateInfoCount = 1; //ƒLƒ…[‚Í•¡”ì¬‚Å‚«‚é‚ªC‚±‚±‚Å‚Íˆê‚Â‚ÌƒLƒ…[‚¾‚¯‚ğ—^‚¦‚éC
-	DCInfo.pQueueCreateInfos = &DQCInfo; // •¡”‚ÌƒLƒ…[ƒtƒ@ƒ~ƒŠ[‚ğŠ„‚è“–‚Ä‚éê‡‚Í‚±‚±‚Å”z—ñ‚ğw’è‚·‚éD¡‚Íˆê‚Â‚µ‚©w’è‚µ‚È‚¢‚Ì‚Å’P‚È‚éƒ|ƒCƒ“ƒ^‚ğ“n‚·D
-	DCInfo.enabledLayerCount = 1; // "VK_LAYER_KHRONOS_validation ‚ªg‚¦‚é‚Æ‰¼’è‚µ‚Ä‚é
-	DCInfo.ppEnabledLayerNames = &LAYER_NAME;
-	DCInfo.enabledExtensionCount = deviceExtensionCount; //‚±‚±‚Å‚ÍŠg’£‹@”\‚Íİ’è‚µ‚È‚¢
+	DCInfo.sType		       = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+	DCInfo.pNext		       = nullptr;
+	DCInfo.flags		       = 0;	   //ç¾åœ¨ã®versionã§ã¯ã“ã®å±æ€§ã¯ä½¿ã‚ã‚Œãªã„
+	DCInfo.queueCreateInfoCount    = 1;	   //ã‚­ãƒ¥ãƒ¼ã¯è¤‡æ•°ä½œæˆã§ãã‚‹ãŒï¼Œã“ã“ã§ã¯ä¸€ã¤ã®ã‚­ãƒ¥ãƒ¼ã ã‘ã‚’ä¸ãˆã‚‹ï¼Œ
+	DCInfo.pQueueCreateInfos       = &DQCInfo; // è¤‡æ•°ã®ã‚­ãƒ¥ãƒ¼ãƒ•ã‚¡ãƒŸãƒªãƒ¼ã‚’å‰²ã‚Šå½“ã¦ã‚‹å ´åˆã¯ã“ã“ã§é…åˆ—ã‚’æŒ‡å®šã™ã‚‹ï¼ä»Šã¯ä¸€ã¤ã—ã‹æŒ‡å®šã—ãªã„ã®ã§å˜ãªã‚‹ãƒã‚¤ãƒ³ã‚¿ã‚’æ¸¡ã™ï¼
+	DCInfo.enabledLayerCount       = 1;	   // "VK_LAYER_KHRONOS_validation ãŒä½¿ãˆã‚‹ã¨ä»®å®šã—ã¦ã‚‹
+	DCInfo.ppEnabledLayerNames     = &LAYER_NAME;
+	DCInfo.enabledExtensionCount   = deviceExtensionCount; //ã“ã“ã§ã¯æ‹¡å¼µæ©Ÿèƒ½ã¯è¨­å®šã—ãªã„
 	DCInfo.ppEnabledExtensionNames = deviceExtensionName;
-	DCInfo.pEnabledFeatures = nullptr; //‚±‚±‚Å‚ÍƒIƒvƒVƒ‡ƒ“‹@”\‚Íİ’è‚µ‚È‚¢C—LŒø‰»‚³‚ê‚½ƒIƒvƒVƒ‡ƒ“‹@”\‚Í‚±‚Ì•Ï”‚É‘‚«‚Ü‚ê‚éD
-	//ƒTƒ|[ƒg‚³‚ê‚éƒIƒvƒVƒ‡ƒ“‹@”\‚É‚Â‚¢‚Ä‚ÍvkGetPhysicalDeviceFeatures()‚ÅŠm”F‚Å‚«‚éD
+	DCInfo.pEnabledFeatures	       = nullptr; //ã“ã“ã§ã¯ã‚ªãƒ—ã‚·ãƒ§ãƒ³æ©Ÿèƒ½ã¯è¨­å®šã—ãªã„ï¼Œæœ‰åŠ¹åŒ–ã•ã‚ŒãŸã‚ªãƒ—ã‚·ãƒ§ãƒ³æ©Ÿèƒ½ã¯ã“ã®å¤‰æ•°ã«æ›¸ãè¾¼ã¾ã‚Œã‚‹ï¼
+	//ã‚µãƒãƒ¼ãƒˆã•ã‚Œã‚‹ã‚ªãƒ—ã‚·ãƒ§ãƒ³æ©Ÿèƒ½ã«ã¤ã„ã¦ã¯vkGetPhysicalDeviceFeatures()ã§ç¢ºèªã§ãã‚‹ï¼
 
 	VkDevice logicaldevice;
 	result = vkCreateDevice(pPDs[physical_device_index], &DCInfo, nullptr, &logicaldevice);
@@ -884,7 +817,7 @@ void Renderer::Initialize(InitializeParams& initializeParams)
 	vkGetDeviceQueue(logicaldevice, queue_family_index, 0, &m_pImpl->queue);
 	m_pImpl->logicalDevice = logicaldevice;
 
-	//ƒfƒoƒCƒXƒŒƒxƒ‹‚ÌƒŒƒCƒ„Cª‚Å”‚ğæ“¾‚µ‚½‚¾‚¯‚ÅŠm”F‚µ‚Ä‚È‚¢‚Ì‚Å‚±‚±‚ÅŠm”F
+	//ãƒ‡ãƒã‚¤ã‚¹ãƒ¬ãƒ™ãƒ«ã®ãƒ¬ã‚¤ãƒ¤ï¼Œâ†‘ã§æ•°ã‚’å–å¾—ã—ãŸã ã‘ã§ç¢ºèªã—ã¦ãªã„ã®ã§ã“ã“ã§ç¢ºèª
 
 	uint32_t numDLayer;
 	result = vkEnumerateDeviceLayerProperties(pPDs[physical_device_index], &numDLayer, nullptr);
@@ -894,7 +827,7 @@ void Renderer::Initialize(InitializeParams& initializeParams)
 	}
 	logger << "Device Layer size: " << numDLayer << std::endl;
 	VkLayerProperties* pDLPs = new VkLayerProperties[numDLayer];
-	result = vkEnumerateDeviceLayerProperties(pPDs[physical_device_index], &numDLayer, pDLPs);
+	result			 = vkEnumerateDeviceLayerProperties(pPDs[physical_device_index], &numDLayer, pDLPs);
 	if (result != VK_SUCCESS) {
 		logger << "failed to get properties of Layer!!!" << std::endl;
 		exit(1);
@@ -910,51 +843,48 @@ void Renderer::Initialize(InitializeParams& initializeParams)
 	logger << std::endl;
 
 	//////////////////////////////////////////////////////////////////////
-	///////////////////////////ƒRƒ}ƒ“ƒh///////////////////////////////////
+	///////////////////////////ã‚³ãƒãƒ³ãƒ‰///////////////////////////////////
 	//////////////////////////////////////////////////////////////////////
 
-	// ƒRƒ}ƒ“ƒhƒoƒbƒtƒ@—p‚Ìƒƒ‚ƒŠƒv[ƒ‹iƒRƒ}ƒ“ƒhƒv[ƒ‹j‚ğì¬
+	// ã‚³ãƒãƒ³ãƒ‰ãƒãƒƒãƒ•ã‚¡ç”¨ã®ãƒ¡ãƒ¢ãƒªãƒ—ãƒ¼ãƒ«ï¼ˆã‚³ãƒãƒ³ãƒ‰ãƒ—ãƒ¼ãƒ«ï¼‰ã‚’ä½œæˆ
 	VkCommandPoolCreateInfo CPCI;
-	CPCI.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-	CPCI.pNext = nullptr;
-	CPCI.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT; // ŠeƒRƒ}ƒ“ƒhƒoƒbƒtƒ@‚ªÄ‹L˜^‚ğ‹–‰Â
+	CPCI.sType	      = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+	CPCI.pNext	      = nullptr;
+	CPCI.flags	      = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT; // å„ã‚³ãƒãƒ³ãƒ‰ãƒãƒƒãƒ•ã‚¡ãŒå†è¨˜éŒ²ã‚’è¨±å¯
 	CPCI.queueFamilyIndex = queue_family_index;
 
 	VkCommandPool CP;
 	result = vkCreateCommandPool(logicaldevice, &CPCI, nullptr, &CP);
-	if (result != VK_SUCCESS)
-	{
+	if (result != VK_SUCCESS) {
 		logger << "fail to create command pool!!!" << std::endl;
 		exit(1);
 	}
 
-	// ƒRƒ}ƒ“ƒhƒoƒbƒtƒ@‚ğì¬
+	// ã‚³ãƒãƒ³ãƒ‰ãƒãƒƒãƒ•ã‚¡ã‚’ä½œæˆ
 	VkCommandBufferAllocateInfo CBAI;
-	CBAI.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	CBAI.pNext = nullptr;
-	CBAI.commandPool = CP;
-	CBAI.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY; // ƒRƒ}ƒ“ƒhƒoƒbƒtƒ@‚ÌƒŒƒxƒ‹C‚Æ‚è‚ ‚¦‚¸ˆêŸ
-	CBAI.commandBufferCount = 2; // ì¬‚·‚éƒRƒ}ƒ“ƒhƒoƒbƒtƒ@‚Ì”
+	CBAI.sType		= VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	CBAI.pNext		= nullptr;
+	CBAI.commandPool	= CP;
+	CBAI.level		= VK_COMMAND_BUFFER_LEVEL_PRIMARY; // ã‚³ãƒãƒ³ãƒ‰ãƒãƒƒãƒ•ã‚¡ã®ãƒ¬ãƒ™ãƒ«ï¼Œã¨ã‚Šã‚ãˆãšä¸€æ¬¡
+	CBAI.commandBufferCount = 2;				   // ä½œæˆã™ã‚‹ã‚³ãƒãƒ³ãƒ‰ãƒãƒƒãƒ•ã‚¡ã®æ•°
 
 	result = vkAllocateCommandBuffers(logicaldevice, &CBAI, m_pImpl->CB);
-	if (result != VK_SUCCESS)
-	{
+	if (result != VK_SUCCESS) {
 		logger << "fail to create command buffer!!!" << std::endl;
 		exit(1);
 	}
 
 	////////////////////////////////////////////////////////////////////////
-	///////////////////////////ƒvƒŒƒ[ƒ“ƒe[ƒVƒ‡ƒ“///////////////////////////
+	///////////////////////////ãƒ—ãƒ¬ã‚¼ãƒ³ãƒ†ãƒ¼ã‚·ãƒ§ãƒ³///////////////////////////
 	////////////////////////////////////////////////////////////////////////
 
-	const int32_t windowWidth = initializeParams.windowSize.x;
+	const int32_t windowWidth  = initializeParams.windowSize.x;
 	const int32_t windowHeight = initializeParams.windowSize.y;
 
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 	GLFWwindow* window = glfwCreateWindow(windowWidth, windowHeight, "Vulkan no test dayo", nullptr, nullptr);
-	m_pImpl->window = window;
-	if (window == nullptr)
-	{
+	m_pImpl->window	   = window;
+	if (window == nullptr) {
 		logger << "fail to create window!!!" << std::endl;
 		exit(1);
 	}
@@ -962,124 +892,108 @@ void Renderer::Initialize(InitializeParams& initializeParams)
 
 	VkSurfaceKHR surface;
 	result = glfwCreateWindowSurface(instance, window, nullptr, &surface);
-	if (result != VK_SUCCESS)
-	{
+	if (result != VK_SUCCESS) {
 		logger << "fail to create surface" << std::endl;
 		exit(1);
 	}
 
-	// ƒXƒƒbƒvƒ`ƒF[ƒ“ì¬‚É•K—v‚Èî•ñ‚ğæ“¾
+	// ã‚¹ãƒ¯ãƒƒãƒ—ãƒã‚§ãƒ¼ãƒ³ä½œæˆã«å¿…è¦ãªæƒ…å ±ã‚’å–å¾—
 
-	// w’è‚µ‚½•¨—ƒfƒoƒCƒX‚ÌƒLƒ…[ƒtƒ@ƒ~ƒŠ‚ªì¬‚µ‚½ƒT[ƒtƒFƒX‚ÌƒvƒŒƒ[ƒ“ƒe[ƒVƒ‡ƒ“‚ğƒTƒ|[ƒg‚µ‚Ä‚¢‚é‚©‚Ç‚¤‚©‚ÌŠm”F
+	// æŒ‡å®šã—ãŸç‰©ç†ãƒ‡ãƒã‚¤ã‚¹ã®ã‚­ãƒ¥ãƒ¼ãƒ•ã‚¡ãƒŸãƒªãŒä½œæˆã—ãŸã‚µãƒ¼ãƒ•ã‚§ã‚¹ã®ãƒ—ãƒ¬ã‚¼ãƒ³ãƒ†ãƒ¼ã‚·ãƒ§ãƒ³ã‚’ã‚µãƒãƒ¼ãƒˆã—ã¦ã„ã‚‹ã‹ã©ã†ã‹ã®ç¢ºèª
 	VkBool32 presentationSupported = VK_FALSE;
 	vkGetPhysicalDeviceSurfaceSupportKHR(pPDs[physical_device_index], queue_family_index, surface, &presentationSupported);
-	if (presentationSupported != VK_TRUE)
-	{
+	if (presentationSupported != VK_TRUE) {
 		exit(1);
 	}
 
-	// ƒT[ƒtƒFƒX‚Ì Capability ‚ğæ“¾
+	// ã‚µãƒ¼ãƒ•ã‚§ã‚¹ã® Capability ã‚’å–å¾—
 	result = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(pPDs[physical_device_index], surface, &m_pImpl->surfaceCapabilities);
-	if (result != VK_SUCCESS)
-	{
+	if (result != VK_SUCCESS) {
 		exit(1);
 	}
-	// •K—v‚È‚â‚Â‚ğŠm”F
+	// å¿…è¦ãªã‚„ã¤ã‚’ç¢ºèª
 	logger << m_pImpl->surfaceCapabilities.currentExtent.width << " , " << m_pImpl->surfaceCapabilities.currentExtent.height << std::endl;
 	m_pImpl->swapChainExtent = m_pImpl->surfaceCapabilities.currentExtent;
 
-	// ƒT[ƒtƒFƒX‚ª‘Î‰‚·‚éƒtƒH[ƒ}ƒbƒg‚ğæ“¾
+	// ã‚µãƒ¼ãƒ•ã‚§ã‚¹ãŒå¯¾å¿œã™ã‚‹ãƒ•ã‚©ãƒ¼ãƒãƒƒãƒˆã‚’å–å¾—
 	uint32_t supportedFormatCount = 0;
-	result = vkGetPhysicalDeviceSurfaceFormatsKHR(pPDs[physical_device_index], surface, &supportedFormatCount, nullptr);
-	if (result != VK_SUCCESS)
-	{
+	result			      = vkGetPhysicalDeviceSurfaceFormatsKHR(pPDs[physical_device_index], surface, &supportedFormatCount, nullptr);
+	if (result != VK_SUCCESS) {
 		exit(1);
 	}
 	logger << "supported format count; " << supportedFormatCount << std::endl;
 	VkSurfaceFormatKHR* supportedFormats = new VkSurfaceFormatKHR[supportedFormatCount];
-	result = vkGetPhysicalDeviceSurfaceFormatsKHR(pPDs[physical_device_index], surface, &supportedFormatCount, supportedFormats);
-	if (result != VK_SUCCESS)
-	{
+	result				     = vkGetPhysicalDeviceSurfaceFormatsKHR(pPDs[physical_device_index], surface, &supportedFormatCount, supportedFormats);
+	if (result != VK_SUCCESS) {
 		exit(1);
 	}
 	uint32_t selectedSurfaceFormatIndex = 0;
-	for (uint32_t i = 0; i < supportedFormatCount; i++)
-	{
-		if (supportedFormats[i].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR && supportedFormats[i].format == VK_FORMAT_R8G8B8A8_UNORM)
-		{
+	for (uint32_t i = 0; i < supportedFormatCount; i++) {
+		if (supportedFormats[i].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR && supportedFormats[i].format == VK_FORMAT_R8G8B8A8_UNORM) {
 			selectedSurfaceFormatIndex = i;
 		}
 	}
 
 	m_pImpl->swapChainImageFormat = supportedFormats[selectedSurfaceFormatIndex].format;
-	m_pImpl->swapChainColorSpace = supportedFormats[selectedSurfaceFormatIndex].colorSpace;
+	m_pImpl->swapChainColorSpace  = supportedFormats[selectedSurfaceFormatIndex].colorSpace;
 
-
-	// ƒXƒƒbƒvƒ`ƒF[ƒ“ì¬
+	// ã‚¹ãƒ¯ãƒƒãƒ—ãƒã‚§ãƒ¼ãƒ³ä½œæˆ
 	VkSwapchainCreateInfoKHR SCCI;
-	SCCI.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-	SCCI.pNext = nullptr;
-	SCCI.flags = 0u; // ‚Ü‚¾d—l‚ª‚È‚¢
-	SCCI.surface = surface; // ‚±‚±‚ÅƒT[ƒtƒFƒX‚ğ“n‚·
-	SCCI.minImageCount = 2; // ƒ_ƒuƒ‹ƒoƒbƒtƒ@
-	SCCI.imageFormat = supportedFormats[selectedSurfaceFormatIndex].format; // ƒtƒH[ƒ}ƒbƒgC
-	SCCI.imageColorSpace = supportedFormats[selectedSurfaceFormatIndex].colorSpace;
-	SCCI.imageExtent = m_pImpl->surfaceCapabilities.currentExtent;
-	SCCI.imageArrayLayers = 1; // ƒXƒeƒŒƒI‹‚ğg‚í‚È‚¢‚Ì‚Å 1
-	SCCI.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-	SCCI.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE; // ƒCƒ[ƒW‚ª•¡”ƒLƒ…[‚Å‹¤—L‚³‚ê‚é‚©‚Ç‚¤‚©C‚Æ‚è‚ ‚¦‚¸ exclusive ‚É‚µ‚Ä‚¨‚­
-	SCCI.queueFamilyIndexCount = 0; // ª‚ª exclusive ‚È‚Ì‚Å‚±‚Ì’l‚Í–³‹‚³‚ê‚é
-	SCCI.pQueueFamilyIndices = nullptr; // ª‚ª exclusive ‚È‚Ì‚Å‚±‚Ì’l‚Í–³‹‚³‚ê‚é
-	SCCI.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR; // ƒCƒ[ƒW‚Ì•ÏŠ·‚Í•s—v
-	SCCI.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR; // ƒAƒ‹ƒtƒ@‡¬‚Í‚µ‚È‚¢‚Ì‚Å opaque ‚Æ‚·‚é
-	SCCI.presentMode = VK_PRESENT_MODE_FIFO_KHR; // ‚’¼“¯Šú‚³‚¹‚éC“¯Šú‚³‚¹‚È‚¢‚Æ‚«‚Í immediate ‚© mailbox ‚Æ‚·‚é
-	SCCI.clipped = false; // Œ©‚¦‚Ä‚¢‚È‚¢•”•ª‚Å‚ ‚Á‚Ä‚àˆ—‚ğ‘–‚ç‚¹‚é
-	SCCI.oldSwapchain = VK_NULL_HANDLE; // oldSwapchain ‚Í‚È‚¢CƒŠƒTƒCƒNƒ‹‚µ‚½‚¢‚Æ‚«‚Íg‚¦‚é
+	SCCI.sType		   = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+	SCCI.pNext		   = nullptr;
+	SCCI.flags		   = 0u;						  // ã¾ã ä»•æ§˜ãŒãªã„
+	SCCI.surface		   = surface;						  // ã“ã“ã§ã‚µãƒ¼ãƒ•ã‚§ã‚¹ã‚’æ¸¡ã™
+	SCCI.minImageCount	   = 2;							  // ãƒ€ãƒ–ãƒ«ãƒãƒƒãƒ•ã‚¡
+	SCCI.imageFormat	   = supportedFormats[selectedSurfaceFormatIndex].format; // ãƒ•ã‚©ãƒ¼ãƒãƒƒãƒˆï¼Œ
+	SCCI.imageColorSpace	   = supportedFormats[selectedSurfaceFormatIndex].colorSpace;
+	SCCI.imageExtent	   = m_pImpl->surfaceCapabilities.currentExtent;
+	SCCI.imageArrayLayers	   = 1; // ã‚¹ãƒ†ãƒ¬ã‚ªè¦–ã‚’ä½¿ã‚ãªã„ã®ã§ 1
+	SCCI.imageUsage		   = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+	SCCI.imageSharingMode	   = VK_SHARING_MODE_EXCLUSIVE;		    // ã‚¤ãƒ¡ãƒ¼ã‚¸ãŒè¤‡æ•°ã‚­ãƒ¥ãƒ¼ã§å…±æœ‰ã•ã‚Œã‚‹ã‹ã©ã†ã‹ï¼Œã¨ã‚Šã‚ãˆãš exclusive ã«ã—ã¦ãŠã
+	SCCI.queueFamilyIndexCount = 0;					    // â†‘ãŒ exclusive ãªã®ã§ã“ã®å€¤ã¯ç„¡è¦–ã•ã‚Œã‚‹
+	SCCI.pQueueFamilyIndices   = nullptr;				    // â†‘ãŒ exclusive ãªã®ã§ã“ã®å€¤ã¯ç„¡è¦–ã•ã‚Œã‚‹
+	SCCI.preTransform	   = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR; // ã‚¤ãƒ¡ãƒ¼ã‚¸ã®å¤‰æ›ã¯ä¸è¦
+	SCCI.compositeAlpha	   = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;	    // ã‚¢ãƒ«ãƒ•ã‚¡åˆæˆã¯ã—ãªã„ã®ã§ opaque ã¨ã™ã‚‹
+	SCCI.presentMode	   = VK_PRESENT_MODE_FIFO_KHR;		    // å‚ç›´åŒæœŸã•ã›ã‚‹ï¼ŒåŒæœŸã•ã›ãªã„ã¨ãã¯ immediate ã‹ mailbox ã¨ã™ã‚‹
+	SCCI.clipped		   = false;				    // è¦‹ãˆã¦ã„ãªã„éƒ¨åˆ†ã§ã‚ã£ã¦ã‚‚å‡¦ç†ã‚’èµ°ã‚‰ã›ã‚‹
+	SCCI.oldSwapchain	   = VK_NULL_HANDLE;			    // oldSwapchain ã¯ãªã„ï¼Œãƒªã‚µã‚¤ã‚¯ãƒ«ã—ãŸã„ã¨ãã¯ä½¿ãˆã‚‹
 
 	VkSwapchainKHR swapchain;
 	result = vkCreateSwapchainKHR(logicaldevice, &SCCI, nullptr, &m_pImpl->swapChain);
-	if (result != VK_SUCCESS)
-	{
+	if (result != VK_SUCCESS) {
 		logger << "fail to create swapchain" << std::endl;
 		exit(1);
 	}
 
-	// ƒCƒ[ƒW‚Ö‚Ìƒnƒ“ƒhƒ‹‚ğæ“¾
-	uint32_t swapchainImageCount; // ª‚Åw’è‚µ‚½ 2 ‚ÍÅ¬‚Ì”‚È‚Ì‚Å³Šm‚È”‚ğæ“¾‚·‚é
+	// ã‚¤ãƒ¡ãƒ¼ã‚¸ã¸ã®ãƒãƒ³ãƒ‰ãƒ«ã‚’å–å¾—
+	uint32_t swapchainImageCount; // â†‘ã§æŒ‡å®šã—ãŸ 2 ã¯æœ€å°ã®æ•°ãªã®ã§æ­£ç¢ºãªæ•°ã‚’å–å¾—ã™ã‚‹
 	vkGetSwapchainImagesKHR(logicaldevice, m_pImpl->swapChain, &swapchainImageCount, nullptr);
 	logger << "image count: " << swapchainImageCount << std::endl;
 	vkGetSwapchainImagesKHR(logicaldevice, m_pImpl->swapChain, &swapchainImageCount, m_pImpl->swapChainImages);
 
 	m_pImpl->swapChainImageCount = swapchainImageCount;
 	m_pImpl->swapChainImageViews = new VkImageView[swapchainImageCount];
-	for (int i = 0; i < swapchainImageCount; i++)
-	{
-		VkImageViewCreateInfo IVCI = {};
-		IVCI.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-		IVCI.image = m_pImpl->swapChainImages[i];
-		IVCI.viewType = VK_IMAGE_VIEW_TYPE_2D;
-		IVCI.format = supportedFormats[selectedSurfaceFormatIndex].format;
-		IVCI.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-		IVCI.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-		IVCI.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-		IVCI.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-		IVCI.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT; // color target ‚Ég‚¤
-		IVCI.subresourceRange.baseMipLevel = 0; // mipmap ‚à multiple layer ‚àg‚í‚È‚¢
-		IVCI.subresourceRange.levelCount = 1;
+	for (int i = 0; i < swapchainImageCount; i++) {
+		VkImageViewCreateInfo IVCI	     = {};
+		IVCI.sType			     = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+		IVCI.image			     = m_pImpl->swapChainImages[i];
+		IVCI.viewType			     = VK_IMAGE_VIEW_TYPE_2D;
+		IVCI.format			     = supportedFormats[selectedSurfaceFormatIndex].format;
+		IVCI.components.r		     = VK_COMPONENT_SWIZZLE_IDENTITY;
+		IVCI.components.g		     = VK_COMPONENT_SWIZZLE_IDENTITY;
+		IVCI.components.b		     = VK_COMPONENT_SWIZZLE_IDENTITY;
+		IVCI.components.a		     = VK_COMPONENT_SWIZZLE_IDENTITY;
+		IVCI.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT; // color target ã«ä½¿ã†
+		IVCI.subresourceRange.baseMipLevel   = 0;			  // mipmap ã‚‚ multiple layer ã‚‚ä½¿ã‚ãªã„
+		IVCI.subresourceRange.levelCount     = 1;
 		IVCI.subresourceRange.baseArrayLayer = 0;
-		IVCI.subresourceRange.layerCount = 1;
+		IVCI.subresourceRange.layerCount     = 1;
 
 		result = vkCreateImageView(logicaldevice, &IVCI, nullptr, &m_pImpl->swapChainImageViews[i]);
-		if (result != VK_SUCCESS)
-		{
+		if (result != VK_SUCCESS) {
 			exit(1);
 		}
 	}
-
-
-
-
-
 
 	// ubo
 	m_pImpl->CreateBuffer(m_pImpl->uniformBufferImpl1, Renderer::Uniform, 256);
@@ -1088,223 +1002,132 @@ void Renderer::Initialize(InitializeParams& initializeParams)
 	(*static_cast<float*>(m_pImpl->mappedData)) = 0.6f;
 	//vkUnmapMemory(logicaldevice, uboBufferDeviceMemory);
 
-
-
-
 	// texture
 	GpuTextureMemoryImpl textureMemory;
 	m_pImpl->CreateImage(128, 128, textureMemory);
 	m_pImpl->CreateImageView(textureMemory);
-
-
 
 	GpuMemoryImpl stagingBufferMemory;
 	m_pImpl->CreateBuffer(stagingBufferMemory, Renderer::Transfer, textureMemory.width * textureMemory.height * 4);
 
 	uint32_t* stagingBufferCpu;
 	m_pImpl->GetCpuMemoryPointer(stagingBufferMemory, (void**)&stagingBufferCpu);
-	for (uint32_t i = 0; i < 128; i++)
-	{
-		for (uint32_t j = 0; j < 128; j++)
-		{
-			if ((i / 8 + j / 8) % 2 == 0)
-			{
+	for (uint32_t i = 0; i < 128; i++) {
+		for (uint32_t j = 0; j < 128; j++) {
+			if ((i / 8 + j / 8) % 2 == 0) {
 				stagingBufferCpu[128 * i + j] = 0xFF555555;
-			}
-			else
-			{
+			} else {
 				stagingBufferCpu[128 * i + j] = 0xFFFFFFFF;
-
 			}
 		}
 	}
 	m_pImpl->UnmapCpuMemoryPointer(stagingBufferMemory);
 
-	// GPU ‚Å“]‘—
+	// GPU ã§è»¢é€
 	m_pImpl->TransferStagingBufferToImage(stagingBufferMemory, textureMemory);
-
-
-
-
-
-
-
-
-
 
 	m_pImpl->CreateSampler(textureMemory);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-	VkDescriptorSetLayoutBinding layoutBindings[2] = { {},{} };
-	layoutBindings[0].binding = 0; //binding = 0
-	layoutBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	layoutBindings[0].descriptorCount = 1;
-	layoutBindings[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-	layoutBindings[1].binding = 1; //binding = 1
-	layoutBindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	layoutBindings[1].descriptorCount = 1;
-	layoutBindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+	VkDescriptorSetLayoutBinding layoutBindings[2] = { {}, {} };
+	layoutBindings[0].binding		       = 0; //binding = 0
+	layoutBindings[0].descriptorType	       = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	layoutBindings[0].descriptorCount	       = 1;
+	layoutBindings[0].stageFlags		       = VK_SHADER_STAGE_VERTEX_BIT;
+	layoutBindings[1].binding		       = 1; //binding = 1
+	layoutBindings[1].descriptorType	       = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	layoutBindings[1].descriptorCount	       = 1;
+	layoutBindings[1].stageFlags		       = VK_SHADER_STAGE_FRAGMENT_BIT;
 
 	VkDescriptorSetLayoutCreateInfo DSLCI = {};
-	DSLCI.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	DSLCI.bindingCount = 2;
-	DSLCI.pBindings = layoutBindings;
+	DSLCI.sType			      = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	DSLCI.bindingCount		      = 2;
+	DSLCI.pBindings			      = layoutBindings;
 
 	VkDescriptorSetLayout descriptorSetLayout;
 	result = vkCreateDescriptorSetLayout(logicaldevice, &DSLCI, nullptr, &descriptorSetLayout);
-	if (result != VK_SUCCESS)
-	{
+	if (result != VK_SUCCESS) {
 		exit(1);
 	}
 
-
-
-
-
 	VkDescriptorPoolSize poolSize[2];
-	// ubo—p
-	poolSize[0] = {};
-	poolSize[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	// uboç”¨
+	poolSize[0]		    = {};
+	poolSize[0].type	    = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	poolSize[0].descriptorCount = 10;
-	// ƒeƒNƒXƒ`ƒƒ—p
-	poolSize[1] = {};
-	poolSize[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	// ãƒ†ã‚¯ã‚¹ãƒãƒ£ç”¨
+	poolSize[1]		    = {};
+	poolSize[1].type	    = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	poolSize[1].descriptorCount = 10;
 
 	VkDescriptorPoolCreateInfo DPCI = {};
-	DPCI.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-	DPCI.poolSizeCount = 2;
-	DPCI.pPoolSizes = poolSize;
-	DPCI.maxSets = 10;
-	DPCI.flags = 0;
+	DPCI.sType			= VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	DPCI.poolSizeCount		= 2;
+	DPCI.pPoolSizes			= poolSize;
+	DPCI.maxSets			= 10;
+	DPCI.flags			= 0;
 
 	result = vkCreateDescriptorPool(logicaldevice, &DPCI, nullptr, &m_pImpl->descriptorPool);
-	if (result != VK_SUCCESS)
-	{
+	if (result != VK_SUCCESS) {
 		std::cout << "faild to create descriptor pool !!!" << std::endl;
 		exit(1);
 	}
 
-
-
 	VkDescriptorSetAllocateInfo DSAI = {};
-	DSAI.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-	DSAI.descriptorPool = m_pImpl->descriptorPool;
-	DSAI.descriptorSetCount = 1;
-	DSAI.pSetLayouts = &descriptorSetLayout;
+	DSAI.sType			 = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	DSAI.descriptorPool		 = m_pImpl->descriptorPool;
+	DSAI.descriptorSetCount		 = 1;
+	DSAI.pSetLayouts		 = &descriptorSetLayout;
 
 	result = vkAllocateDescriptorSets(logicaldevice, &DSAI, &m_pImpl->descriptorSet);
-	if (result != VK_SUCCESS)
-	{
+	if (result != VK_SUCCESS) {
 		exit(1);
 	}
 
-
-
-
-
-
-
-
 	VkDescriptorBufferInfo descriptorBufferInfo = {};
-	descriptorBufferInfo.buffer = m_pImpl->uniformBufferImpl1.buffer;
-	descriptorBufferInfo.offset = 0;
-	descriptorBufferInfo.range = 16;
+	descriptorBufferInfo.buffer		    = m_pImpl->uniformBufferImpl1.buffer;
+	descriptorBufferInfo.offset		    = 0;
+	descriptorBufferInfo.range		    = 16;
 
 	VkDescriptorImageInfo descriptorImageInfo = {};
-	descriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	descriptorImageInfo.imageView = textureMemory.imageView;
-	descriptorImageInfo.sampler = textureMemory.sampler;
+	descriptorImageInfo.imageLayout		  = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	descriptorImageInfo.imageView		  = textureMemory.imageView;
+	descriptorImageInfo.sampler		  = textureMemory.sampler;
 
-	VkWriteDescriptorSet WDS[2] = { {},{} };
-	WDS[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	WDS[0].dstSet = m_pImpl->descriptorSet;
-	WDS[0].dstBinding = 0;
-	WDS[0].dstArrayElement = 0;
-	WDS[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	WDS[0].descriptorCount = 1;
-	WDS[0].pBufferInfo = &descriptorBufferInfo;
+	VkWriteDescriptorSet WDS[2] = { {}, {} };
+	WDS[0].sType		    = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	WDS[0].dstSet		    = m_pImpl->descriptorSet;
+	WDS[0].dstBinding	    = 0;
+	WDS[0].dstArrayElement	    = 0;
+	WDS[0].descriptorType	    = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	WDS[0].descriptorCount	    = 1;
+	WDS[0].pBufferInfo	    = &descriptorBufferInfo;
 
-	WDS[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	WDS[1].dstSet = m_pImpl->descriptorSet;
-	WDS[1].dstBinding = 1;
+	WDS[1].sType	       = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	WDS[1].dstSet	       = m_pImpl->descriptorSet;
+	WDS[1].dstBinding      = 1;
 	WDS[1].dstArrayElement = 0;
-	WDS[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	WDS[1].descriptorType  = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	WDS[1].descriptorCount = 1;
-	WDS[1].pImageInfo = &descriptorImageInfo;
+	WDS[1].pImageInfo      = &descriptorImageInfo;
 	vkUpdateDescriptorSets(logicaldevice, 2, WDS, 0, nullptr);
 
-
-
-
-
-
-
-
 	VkPipelineInputAssemblyStateCreateInfo PIASCI = {};
-	PIASCI.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-	PIASCI.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-	PIASCI.primitiveRestartEnable = VK_FALSE; // _STRIP Œn‚Ì topology ‚Ì‚Æ‚«CƒCƒ“ƒfƒbƒNƒX‚ª 0xFFFF ‚Ì‚Æ‚«‘Å‚¿Ø‚é‚©‚Ç‚¤‚©
+	PIASCI.sType				      = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+	PIASCI.topology				      = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+	PIASCI.primitiveRestartEnable		      = VK_FALSE; // _STRIP ç³»ã® topology ã®ã¨ãï¼Œã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹ãŒ 0xFFFF ã®ã¨ãæ‰“ã¡åˆ‡ã‚‹ã‹ã©ã†ã‹
 
-	// viewport ‚Æ scissor ‚Í“®“I‚ÉŒˆ‚ß‚ç‚ê‚é—p“r‚Åg‚í‚ê‚â‚·‚¢i‚»‚¤‚¢‚¤‘z’è‚É‚È‚Á‚Ä‚¢‚éj
-	m_pImpl->viewport.x = 0.0f;
-	m_pImpl->viewport.y = 0.0f;
-	m_pImpl->viewport.width = m_pImpl->surfaceCapabilities.currentExtent.width;
-	m_pImpl->viewport.height = m_pImpl->surfaceCapabilities.currentExtent.height;
+	// viewport ã¨ scissor ã¯å‹•çš„ã«æ±ºã‚ã‚‰ã‚Œã‚‹ç”¨é€”ã§ä½¿ã‚ã‚Œã‚„ã™ã„ï¼ˆãã†ã„ã†æƒ³å®šã«ãªã£ã¦ã„ã‚‹ï¼‰
+	m_pImpl->viewport.x	   = 0.0f;
+	m_pImpl->viewport.y	   = 0.0f;
+	m_pImpl->viewport.width	   = m_pImpl->surfaceCapabilities.currentExtent.width;
+	m_pImpl->viewport.height   = m_pImpl->surfaceCapabilities.currentExtent.height;
 	m_pImpl->viewport.maxDepth = 1.0f;
 	m_pImpl->viewport.minDepth = 0.0f;
 
 	m_pImpl->scissor.extent = m_pImpl->surfaceCapabilities.currentExtent;
-	m_pImpl->scissor.offset = { 0,0 };
+	m_pImpl->scissor.offset = { 0, 0 };
 
-
-
-
-
-
-
-
-
-
-
-
-	///// render pass ‚ÌŠJn
+	///// render pass ã®é–‹å§‹
 
 	VkSemaphoreCreateInfo SCI;
 	SCI.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
@@ -1312,23 +1135,19 @@ void Renderer::Initialize(InitializeParams& initializeParams)
 	SCI.flags = 0;
 
 	result = vkCreateSemaphore(logicaldevice, &SCI, nullptr, &m_pImpl->imageAvailableSemaphore[0]);
-	if (result != VK_SUCCESS)
-	{
+	if (result != VK_SUCCESS) {
 		exit(1);
 	}
 	result = vkCreateSemaphore(logicaldevice, &SCI, nullptr, &m_pImpl->imageAvailableSemaphore[1]);
-	if (result != VK_SUCCESS)
-	{
+	if (result != VK_SUCCESS) {
 		exit(1);
 	}
 	result = vkCreateSemaphore(logicaldevice, &SCI, nullptr, &m_pImpl->renderFinishedSemaphore[0]);
-	if (result != VK_SUCCESS)
-	{
+	if (result != VK_SUCCESS) {
 		exit(1);
 	}
 	result = vkCreateSemaphore(logicaldevice, &SCI, nullptr, &m_pImpl->renderFinishedSemaphore[1]);
-	if (result != VK_SUCCESS)
-	{
+	if (result != VK_SUCCESS) {
 		exit(1);
 	}
 
@@ -1336,82 +1155,74 @@ void Renderer::Initialize(InitializeParams& initializeParams)
 	FCI.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
 	FCI.flags = 0;
 	FCI.pNext = nullptr;
-	result = vkCreateFence(logicaldevice, &FCI, nullptr, &m_pImpl->inFlightFence[0]);
-	if (result != VK_SUCCESS)
-	{
+	result	  = vkCreateFence(logicaldevice, &FCI, nullptr, &m_pImpl->inFlightFence[0]);
+	if (result != VK_SUCCESS) {
 		exit(1);
 	}
 	result = vkCreateFence(logicaldevice, &FCI, nullptr, &m_pImpl->inFlightFence[1]);
-	if (result != VK_SUCCESS)
-	{
+	if (result != VK_SUCCESS) {
 		exit(1);
 	}
-
 }
-
 
 void Renderer::Draw(DrawParams& drawParams)
 {
-	uint32_t counter = 0;
+	uint32_t counter	  = 0;
 	uint32_t frameBufferIndex = 999;
 
-	while (!glfwWindowShouldClose(m_pImpl->window))
-	{
+	while (!glfwWindowShouldClose(m_pImpl->window)) {
 		VkResult result;
 
 		glfwPollEvents();
 
-		// ‚±‚ÌƒtƒŒ[ƒ€‚Åg‚¤ GPU ƒŠƒ\[ƒX‚ÌId‚ğŒˆ’èD‚½‚¾‚µƒvƒŒƒ[ƒ“Š®—¹‚ÌƒZƒ}ƒtƒH‚Í frameBufferIndex ‚Æˆê’v‚³‚¹‚é‚Ì‚Å’ˆÓD
+		// ã“ã®ãƒ•ãƒ¬ãƒ¼ãƒ ã§ä½¿ã† GPU ãƒªã‚½ãƒ¼ã‚¹ã®Idã‚’æ±ºå®šï¼ãŸã ã—ãƒ—ãƒ¬ã‚¼ãƒ³å®Œäº†ã®ã‚»ãƒãƒ•ã‚©ã¯ frameBufferIndex ã¨ä¸€è‡´ã•ã›ã‚‹ã®ã§æ³¨æ„ï¼
 		uint32_t gpuIndex = (counter) % 2;
 		counter++;
 
-		if (m_pImpl->isProcessing[gpuIndex])
-		{
+		if (m_pImpl->isProcessing[gpuIndex]) {
 			vkWaitForFences(m_pImpl->logicalDevice, 1, &m_pImpl->inFlightFence[gpuIndex], VK_TRUE, UINT64_MAX);
 			vkResetFences(m_pImpl->logicalDevice, 1, &m_pImpl->inFlightFence[gpuIndex]);
 			m_pImpl->isProcessing[gpuIndex] = false;
 		}
 
-		if (frameBufferIndex == 999)
-		{
+		if (frameBufferIndex == 999) {
 			result = vkAcquireNextImageKHR(m_pImpl->logicalDevice, m_pImpl->swapChain, UINT64_MAX, m_pImpl->imageAvailableSemaphore[gpuIndex], VK_NULL_HANDLE, &frameBufferIndex);
 		}
 
 		// Commandbuffer
 		vkResetCommandBuffer(m_pImpl->CB[gpuIndex], 0);
 
-		// ƒRƒ}ƒ“ƒhƒoƒbƒtƒ@‚ÉƒRƒ}ƒ“ƒh‚ğ‹L˜^
-		// ƒRƒ}ƒ“ƒhƒoƒbƒtƒ@[‚Ö‚ÌƒAƒNƒZƒX‚Í“¯Šú‚³‚ê‚é•K—v‚ª‚ ‚é
-		// •¡”ƒXƒŒƒbƒh‚Å‚Ğ‚Æ‚Â‚ÌƒRƒ}ƒ“ƒhƒoƒbƒtƒ@‚ÉƒRƒ}ƒ“ƒh‚ğ‘‚«‚Ü‚È‚¢‚±‚Æ‚ğ•Ûá‚·‚é or  ƒXƒŒƒbƒh‚²‚Æ‚ÉƒRƒ}ƒ“ƒh‚ğ‚Â
+		// ã‚³ãƒãƒ³ãƒ‰ãƒãƒƒãƒ•ã‚¡ã«ã‚³ãƒãƒ³ãƒ‰ã‚’è¨˜éŒ²
+		// ã‚³ãƒãƒ³ãƒ‰ãƒãƒƒãƒ•ã‚¡ãƒ¼ã¸ã®ã‚¢ã‚¯ã‚»ã‚¹ã¯åŒæœŸã•ã‚Œã‚‹å¿…è¦ãŒã‚ã‚‹
+		// è¤‡æ•°ã‚¹ãƒ¬ãƒƒãƒ‰ã§ã²ã¨ã¤ã®ã‚³ãƒãƒ³ãƒ‰ãƒãƒƒãƒ•ã‚¡ã«ã‚³ãƒãƒ³ãƒ‰ã‚’æ›¸ãè¾¼ã¾ãªã„ã“ã¨ã‚’ä¿éšœã™ã‚‹ or  ã‚¹ãƒ¬ãƒƒãƒ‰ã”ã¨ã«ã‚³ãƒãƒ³ãƒ‰ã‚’æŒã¤
 
-		// ƒRƒ}ƒ“ƒhƒoƒbƒtƒ@‚ÌŠJn‚ÆƒŠƒZƒbƒg
+		// ã‚³ãƒãƒ³ãƒ‰ãƒãƒƒãƒ•ã‚¡ã®é–‹å§‹ã¨ãƒªã‚»ãƒƒãƒˆ
 		VkCommandBufferBeginInfo CBBI;
-		CBBI.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO; // 
-		CBBI.pNext = nullptr;
-		CBBI.flags = 0; // ‚Æ‚è‚ ‚¦‚¸ 0 ‚É‚·‚éDƒ}ƒ‹ƒ`ƒpƒXƒŒƒ“ƒ_ƒŠƒ“ƒO‚È‚Ç‚Å‚Íİ’è‚ª•K—v
-		CBBI.pInheritanceInfo = nullptr; // ˆêŸ‚ÌƒRƒ}ƒ“ƒhƒoƒbƒtƒ@‚Å‚Íg‚í‚ê‚È‚¢
+		CBBI.sType	      = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO; //
+		CBBI.pNext	      = nullptr;
+		CBBI.flags	      = 0;	 // ã¨ã‚Šã‚ãˆãš 0 ã«ã™ã‚‹ï¼ãƒãƒ«ãƒãƒ‘ã‚¹ãƒ¬ãƒ³ãƒ€ãƒªãƒ³ã‚°ãªã©ã§ã¯è¨­å®šãŒå¿…è¦
+		CBBI.pInheritanceInfo = nullptr; // ä¸€æ¬¡ã®ã‚³ãƒãƒ³ãƒ‰ãƒãƒƒãƒ•ã‚¡ã§ã¯ä½¿ã‚ã‚Œãªã„
 
 		result = vkBeginCommandBuffer(m_pImpl->CB[gpuIndex], &CBBI);
-		if (result != VK_SUCCESS)
-		{
+		if (result != VK_SUCCESS) {
 			std::cout << "fail to begin command buffer!!!" << std::endl;
 			exit(1);
 		}
 
 		VkRenderPassBeginInfo RPBI = {};
-		RPBI.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-		RPBI.renderPass = m_pImpl->renderPass;
-		RPBI.framebuffer = m_pImpl->frameBuffers[frameBufferIndex];
-		RPBI.renderArea.offset = { 0, 0 };
-		RPBI.renderArea.extent = m_pImpl->swapChainExtent;
+		RPBI.sType		   = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+		RPBI.renderPass		   = m_pImpl->renderPass;
+		RPBI.framebuffer	   = m_pImpl->frameBuffers[frameBufferIndex];
+		RPBI.renderArea.offset	   = { 0, 0 };
+		RPBI.renderArea.extent	   = m_pImpl->swapChainExtent;
 		VkClearValue clearColor;
-		clearColor.color = { 0.0, 0.0, 0.0, 1.0 };
+		clearColor.color     = { 0.0, 0.0, 0.0, 1.0 };
 		RPBI.clearValueCount = 1;
-		RPBI.pClearValues = &clearColor;
-		// renderpass ŠJn‚ğ‹L˜^
-		vkCmdBeginRenderPass(m_pImpl->CB[gpuIndex], &RPBI, VK_SUBPASS_CONTENTS_INLINE); // renderpass command ‚ÍˆêŸƒRƒ}ƒ“ƒh‚ÅÀs‚³‚ê‚é
+		RPBI.pClearValues    = &clearColor;
+		// renderpass é–‹å§‹ã‚’è¨˜éŒ²
+		vkCmdBeginRenderPass(m_pImpl->CB[gpuIndex], &RPBI, VK_SUBPASS_CONTENTS_INLINE); // renderpass command ã¯ä¸€æ¬¡ã‚³ãƒãƒ³ãƒ‰ã§å®Ÿè¡Œã•ã‚Œã‚‹
 
-		// graphicPipeline ‚ğ bind
+		// graphicPipeline ã‚’ bind
 		vkCmdBindPipeline(m_pImpl->CB[gpuIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, m_pImpl->graphicsPipeline);
 
 		vkCmdBindDescriptorSets(m_pImpl->CB[gpuIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, m_pImpl->pipelineLayout, 0, 1, &m_pImpl->descriptorSet, 0, nullptr);
@@ -1420,25 +1231,23 @@ void Renderer::Draw(DrawParams& drawParams)
 		m_pImpl->temp += 0.01;
 		(*static_cast<float*>(m_pImpl->mappedData)) = std::sin(m_pImpl->temp) * 0.6;
 
-		// VK_MEMORY_PROPERTY_HOST_COHERENT_BIT ‚ª^‚È‚Ì‚Å flush ‚Ì•K—v‚Í‚È‚¢‚ªˆê‰
+		// VK_MEMORY_PROPERTY_HOST_COHERENT_BIT ãŒçœŸãªã®ã§ flush ã®å¿…è¦ã¯ãªã„ãŒä¸€å¿œ
 		VkMappedMemoryRange memoryRange2;
-		memoryRange2.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
-		memoryRange2.pNext = nullptr;
+		memoryRange2.sType  = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
+		memoryRange2.pNext  = nullptr;
 		memoryRange2.memory = m_pImpl->uniformBufferImpl1.deviceMemory;
 		memoryRange2.offset = 0;
-		memoryRange2.size = VK_WHOLE_SIZE;
-		result = vkFlushMappedMemoryRanges(m_pImpl->logicalDevice, 1, &memoryRange2);
-		if (result != VK_SUCCESS)
-		{
+		memoryRange2.size   = VK_WHOLE_SIZE;
+		result		    = vkFlushMappedMemoryRanges(m_pImpl->logicalDevice, 1, &memoryRange2);
+		if (result != VK_SUCCESS) {
 			std::cout << "faild to flush memory!!!" << std::endl;
 			exit(1);
 		}
 
-
 		VkDeviceSize vertexBufferOffsets = 0;
 		vkCmdBindVertexBuffers(m_pImpl->CB[gpuIndex], 0, 1, &drawParams.vertexArray[0]->buffer, &vertexBufferOffsets);
 
-		// “®“I‚ÉŒˆ‚ß‚é state ‚ğİ’è
+		// å‹•çš„ã«æ±ºã‚ã‚‹ state ã‚’è¨­å®š
 		vkCmdSetViewport(m_pImpl->CB[gpuIndex], 0, 1, &m_pImpl->viewport);
 		vkCmdSetScissor(m_pImpl->CB[gpuIndex], 0, 1, &m_pImpl->scissor);
 
@@ -1447,34 +1256,32 @@ void Renderer::Draw(DrawParams& drawParams)
 
 		vkCmdEndRenderPass(m_pImpl->CB[gpuIndex]);
 		result = vkEndCommandBuffer(m_pImpl->CB[gpuIndex]);
-		if (result != VK_SUCCESS)
-		{
+		if (result != VK_SUCCESS) {
 			exit(1);
 		}
 
 		// submit
 
-
 		VkPipelineStageFlags waitStages = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-		VkSubmitInfo submitInfo = {};
-		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-		submitInfo.waitSemaphoreCount = 1;
-		submitInfo.pWaitSemaphores = &m_pImpl->imageAvailableSemaphore[gpuIndex];
-		submitInfo.pWaitDstStageMask = &waitStages;
-		submitInfo.commandBufferCount = 1;
-		submitInfo.pCommandBuffers = &m_pImpl->CB[gpuIndex];
+		VkSubmitInfo submitInfo		= {};
+		submitInfo.sType		= VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		submitInfo.waitSemaphoreCount	= 1;
+		submitInfo.pWaitSemaphores	= &m_pImpl->imageAvailableSemaphore[gpuIndex];
+		submitInfo.pWaitDstStageMask	= &waitStages;
+		submitInfo.commandBufferCount	= 1;
+		submitInfo.pCommandBuffers	= &m_pImpl->CB[gpuIndex];
 		submitInfo.signalSemaphoreCount = 1;
-		submitInfo.pSignalSemaphores = &m_pImpl->renderFinishedSemaphore[frameBufferIndex];
+		submitInfo.pSignalSemaphores	= &m_pImpl->renderFinishedSemaphore[frameBufferIndex];
 
 		vkQueueSubmit(m_pImpl->queue, 1, &submitInfo, m_pImpl->inFlightFence[gpuIndex]);
 
-		VkPresentInfoKHR PI = {};
-		PI.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+		VkPresentInfoKHR PI   = {};
+		PI.sType	      = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 		PI.waitSemaphoreCount = 1;
-		PI.pWaitSemaphores = &m_pImpl->renderFinishedSemaphore[frameBufferIndex];
-		PI.swapchainCount = 1;
-		PI.pSwapchains = &m_pImpl->swapChain;
-		PI.pImageIndices = &frameBufferIndex;
+		PI.pWaitSemaphores    = &m_pImpl->renderFinishedSemaphore[frameBufferIndex];
+		PI.swapchainCount     = 1;
+		PI.pSwapchains	      = &m_pImpl->swapChain;
+		PI.pImageIndices      = &frameBufferIndex;
 		vkQueuePresentKHR(m_pImpl->queue, &PI);
 
 		m_pImpl->isProcessing[gpuIndex] = true;
@@ -1484,24 +1291,21 @@ void Renderer::Draw(DrawParams& drawParams)
 	}
 }
 
-
 void Renderer::RegisterVertexInputStateImpl3(VertexAttributeLayout* vertexAttributeLayout)
 {
-	auto* pVertexInputStateImpl = new RendererImpl::VertexInputStateImpl();
+	auto* pVertexInputStateImpl					     = new RendererImpl::VertexInputStateImpl();
 	m_pImpl->vertexInputStateImplMap[vertexAttributeLayout->name.data()] = pVertexInputStateImpl;
 
 	pVertexInputStateImpl->bindingDescriptions.resize(1);
-	pVertexInputStateImpl->bindingDescriptions[0].binding = vertexAttributeLayout->binding; // binding ‚Í vkCmdBindVertexBuffers ‚Ìw’è
-	pVertexInputStateImpl->bindingDescriptions[0].stride = vertexAttributeLayout->stride;
-	pVertexInputStateImpl->bindingDescriptions[0].inputRate = VK_VERTEX_INPUT_RATE_VERTEX; // Še’¸“_‚²‚Æ‚ÉØ‚è‘Ö‚¦‚éiƒCƒ“ƒXƒ^ƒ“ƒX‚²‚Æ‚ÉØ‚è‘Ö‚¦‚é‚±‚Æ‚à‰Â”\j
+	pVertexInputStateImpl->bindingDescriptions[0].binding	= vertexAttributeLayout->binding; // binding ã¯ vkCmdBindVertexBuffers ã®æŒ‡å®š
+	pVertexInputStateImpl->bindingDescriptions[0].stride	= vertexAttributeLayout->stride;
+	pVertexInputStateImpl->bindingDescriptions[0].inputRate = VK_VERTEX_INPUT_RATE_VERTEX; // å„é ‚ç‚¹ã”ã¨ã«åˆ‡ã‚Šæ›¿ãˆã‚‹ï¼ˆã‚¤ãƒ³ã‚¹ã‚¿ãƒ³ã‚¹ã”ã¨ã«åˆ‡ã‚Šæ›¿ãˆã‚‹ã“ã¨ã‚‚å¯èƒ½ï¼‰
 
 	pVertexInputStateImpl->attributeDescriptions.resize(vertexAttributeLayout->attributes.size());
-	for (int i = 0; i < pVertexInputStateImpl->attributeDescriptions.size(); i++)
-	{
-		pVertexInputStateImpl->attributeDescriptions[i].binding = vertexAttributeLayout->attributes[i].binding;
+	for (int i = 0; i < pVertexInputStateImpl->attributeDescriptions.size(); i++) {
+		pVertexInputStateImpl->attributeDescriptions[i].binding	 = vertexAttributeLayout->attributes[i].binding;
 		pVertexInputStateImpl->attributeDescriptions[i].location = vertexAttributeLayout->attributes[i].location;
-		switch (vertexAttributeLayout->attributes[i].format)
-		{
+		switch (vertexAttributeLayout->attributes[i].format) {
 		case VertexAttributeLayout::Attributes::AttributeFormat::Error:
 			pVertexInputStateImpl->attributeDescriptions[i].format = VK_FORMAT_UNDEFINED;
 			break;
@@ -1518,9 +1322,9 @@ void Renderer::RegisterVertexInputStateImpl3(VertexAttributeLayout* vertexAttrib
 		pVertexInputStateImpl->attributeDescriptions[i].offset = vertexAttributeLayout->attributes[i].offset;
 	}
 
-	pVertexInputStateImpl->vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-	pVertexInputStateImpl->vertexInputInfo.vertexBindingDescriptionCount = pVertexInputStateImpl->bindingDescriptions.size();
-	pVertexInputStateImpl->vertexInputInfo.pVertexBindingDescriptions = pVertexInputStateImpl->bindingDescriptions.data();
+	pVertexInputStateImpl->vertexInputInfo.sType			       = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+	pVertexInputStateImpl->vertexInputInfo.vertexBindingDescriptionCount   = pVertexInputStateImpl->bindingDescriptions.size();
+	pVertexInputStateImpl->vertexInputInfo.pVertexBindingDescriptions      = pVertexInputStateImpl->bindingDescriptions.data();
 	pVertexInputStateImpl->vertexInputInfo.vertexAttributeDescriptionCount = pVertexInputStateImpl->attributeDescriptions.size();
-	pVertexInputStateImpl->vertexInputInfo.pVertexAttributeDescriptions = pVertexInputStateImpl->attributeDescriptions.data();
+	pVertexInputStateImpl->vertexInputInfo.pVertexAttributeDescriptions    = pVertexInputStateImpl->attributeDescriptions.data();
 }

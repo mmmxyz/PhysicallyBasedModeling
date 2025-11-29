@@ -19,4 +19,6 @@ endif()
 
 if(WIN32)
 	add_custom_command(TARGET rendererTest POST_BUILD COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/shader/build.bat "${EXE_OUTPUT_PATH}")
+elseif(UNIX)
+	add_custom_command(TARGET rendererTest POST_BUILD COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/shader/build.sh "${EXE_OUTPUT_PATH}" "${CMAKE_CURRENT_SOURCE_DIR}/../../3rdparty/slangBinary/bin")
 endif()
