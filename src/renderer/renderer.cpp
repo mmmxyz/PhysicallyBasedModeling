@@ -201,7 +201,7 @@ void Renderer::CreateGraphicsPipeline(Renderer::GraphicsPipelineParams& graphics
 	PLCI.pushConstantRangeCount	= 0; // uniform buffer は使わない
 	PLCI.pPushConstantRanges	= nullptr;
 	PLCI.setLayoutCount		= descriptorSetCounter;
-	PLCI.pSetLayouts		= m_pImpl->pDescriptorSetLayout;
+	PLCI.pSetLayouts		= pGraphicsPipelineImpl->pDescriptorSetLayout.data();
 
 	result = vkCreatePipelineLayout(m_pImpl->logicalDevice, &PLCI, nullptr, &pGraphicsPipelineImpl->pipelineLayout);
 	if (result != VK_SUCCESS) {
@@ -316,8 +316,10 @@ Renderer::GpuTexture Renderer::CreateGpuTexture(uint32_t width, uint32_t height)
 	return { width, height, pGpuTextureMemoryImpl->size, pGpuTextureMemoryImpl };
 }
 
-Renderer::DescriptorSetInterface Renderer::CreateDescriptorSetInterface(int set)
+Renderer::DescriptorSetInterface Renderer::CreateDescriptorSetInterface(std::string graphicsPipelineName, int set)
 {
+	auto * pGraphicsPipelineImpl = m_pImpl->graphicsPipelineMap[graphicsPipelineName];
+
 	DescriptorSetImpl* pDescriptorSetImpl = new DescriptorSetImpl();
 	pDescriptorSetImpl->set		      = set;
 
@@ -325,7 +327,7 @@ Renderer::DescriptorSetInterface Renderer::CreateDescriptorSetInterface(int set)
 	DSAI.sType			 = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
 	DSAI.descriptorPool		 = m_pImpl->descriptorPool;
 	DSAI.descriptorSetCount		 = 1;
-	DSAI.pSetLayouts		 = &m_pImpl->pDescriptorSetLayout[set];
+	DSAI.pSetLayouts		 = &pGraphicsPipelineImpl->pDescriptorSetLayout[set];
 
 	VkResult result = vkAllocateDescriptorSets(m_pImpl->logicalDevice, &DSAI, &pDescriptorSetImpl->descriptorSet);
 	if (result != VK_SUCCESS) {
@@ -882,7 +884,7 @@ void Renderer::Initialize(InitializeParams& initializeParams)
 	const int32_t windowHeight = initializeParams.windowSize.y;
 
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-	GLFWwindow* window = glfwCreateWindow(windowWidth, windowHeight, "Vulkan no test dayo", nullptr, nullptr);
+	GLFWwindow* window = glfwCreateWindow(windowWidth, windowHeight, initializeParams.windowName.data(), nullptr, nullptr);
 	m_pImpl->window	   = window;
 	if (window == nullptr) {
 		logger << "fail to create window!!!" << std::endl;
@@ -995,59 +997,10 @@ void Renderer::Initialize(InitializeParams& initializeParams)
 		}
 	}
 
-	// ubo
-	m_pImpl->CreateBuffer(m_pImpl->uniformBufferImpl1, Renderer::Uniform, 256);
-	m_pImpl->GetCpuMemoryPointer(m_pImpl->uniformBufferImpl1, &m_pImpl->mappedData);
-	memset(m_pImpl->mappedData, 0, 16);
-	(*static_cast<float*>(m_pImpl->mappedData)) = 0.6f;
-	//vkUnmapMemory(logicaldevice, uboBufferDeviceMemory);
 
-	// texture
-	GpuTextureMemoryImpl textureMemory;
-	m_pImpl->CreateImage(128, 128, textureMemory);
-	m_pImpl->CreateImageView(textureMemory);
 
-	GpuMemoryImpl stagingBufferMemory;
-	m_pImpl->CreateBuffer(stagingBufferMemory, Renderer::Transfer, textureMemory.width * textureMemory.height * 4);
 
-	uint32_t* stagingBufferCpu;
-	m_pImpl->GetCpuMemoryPointer(stagingBufferMemory, (void**)&stagingBufferCpu);
-	for (uint32_t i = 0; i < 128; i++) {
-		for (uint32_t j = 0; j < 128; j++) {
-			if ((i / 8 + j / 8) % 2 == 0) {
-				stagingBufferCpu[128 * i + j] = 0xFF555555;
-			} else {
-				stagingBufferCpu[128 * i + j] = 0xFFFFFFFF;
-			}
-		}
-	}
-	m_pImpl->UnmapCpuMemoryPointer(stagingBufferMemory);
 
-	// GPU で転送
-	m_pImpl->TransferStagingBufferToImage(stagingBufferMemory, textureMemory);
-
-	m_pImpl->CreateSampler(textureMemory);
-
-	VkDescriptorSetLayoutBinding layoutBindings[2] = { {}, {} };
-	layoutBindings[0].binding		       = 0; //binding = 0
-	layoutBindings[0].descriptorType	       = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	layoutBindings[0].descriptorCount	       = 1;
-	layoutBindings[0].stageFlags		       = VK_SHADER_STAGE_VERTEX_BIT;
-	layoutBindings[1].binding		       = 1; //binding = 1
-	layoutBindings[1].descriptorType	       = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	layoutBindings[1].descriptorCount	       = 1;
-	layoutBindings[1].stageFlags		       = VK_SHADER_STAGE_FRAGMENT_BIT;
-
-	VkDescriptorSetLayoutCreateInfo DSLCI = {};
-	DSLCI.sType			      = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	DSLCI.bindingCount		      = 2;
-	DSLCI.pBindings			      = layoutBindings;
-
-	VkDescriptorSetLayout descriptorSetLayout;
-	result = vkCreateDescriptorSetLayout(logicaldevice, &DSLCI, nullptr, &descriptorSetLayout);
-	if (result != VK_SUCCESS) {
-		exit(1);
-	}
 
 	VkDescriptorPoolSize poolSize[2];
 	// ubo用
@@ -1071,50 +1024,6 @@ void Renderer::Initialize(InitializeParams& initializeParams)
 		std::cout << "faild to create descriptor pool !!!" << std::endl;
 		exit(1);
 	}
-
-	VkDescriptorSetAllocateInfo DSAI = {};
-	DSAI.sType			 = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-	DSAI.descriptorPool		 = m_pImpl->descriptorPool;
-	DSAI.descriptorSetCount		 = 1;
-	DSAI.pSetLayouts		 = &descriptorSetLayout;
-
-	result = vkAllocateDescriptorSets(logicaldevice, &DSAI, &m_pImpl->descriptorSet);
-	if (result != VK_SUCCESS) {
-		exit(1);
-	}
-
-	VkDescriptorBufferInfo descriptorBufferInfo = {};
-	descriptorBufferInfo.buffer		    = m_pImpl->uniformBufferImpl1.buffer;
-	descriptorBufferInfo.offset		    = 0;
-	descriptorBufferInfo.range		    = 16;
-
-	VkDescriptorImageInfo descriptorImageInfo = {};
-	descriptorImageInfo.imageLayout		  = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	descriptorImageInfo.imageView		  = textureMemory.imageView;
-	descriptorImageInfo.sampler		  = textureMemory.sampler;
-
-	VkWriteDescriptorSet WDS[2] = { {}, {} };
-	WDS[0].sType		    = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	WDS[0].dstSet		    = m_pImpl->descriptorSet;
-	WDS[0].dstBinding	    = 0;
-	WDS[0].dstArrayElement	    = 0;
-	WDS[0].descriptorType	    = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	WDS[0].descriptorCount	    = 1;
-	WDS[0].pBufferInfo	    = &descriptorBufferInfo;
-
-	WDS[1].sType	       = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	WDS[1].dstSet	       = m_pImpl->descriptorSet;
-	WDS[1].dstBinding      = 1;
-	WDS[1].dstArrayElement = 0;
-	WDS[1].descriptorType  = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	WDS[1].descriptorCount = 1;
-	WDS[1].pImageInfo      = &descriptorImageInfo;
-	vkUpdateDescriptorSets(logicaldevice, 2, WDS, 0, nullptr);
-
-	VkPipelineInputAssemblyStateCreateInfo PIASCI = {};
-	PIASCI.sType				      = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-	PIASCI.topology				      = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-	PIASCI.primitiveRestartEnable		      = VK_FALSE; // _STRIP 系の topology のとき，インデックスが 0xFFFF のとき打ち切るかどうか
 
 	// viewport と scissor は動的に決められる用途で使われやすい（そういう想定になっている）
 	m_pImpl->viewport.x	   = 0.0f;
@@ -1165,130 +1074,116 @@ void Renderer::Initialize(InitializeParams& initializeParams)
 	}
 }
 
+bool Renderer::DrawCondition()
+{
+	return !glfwWindowShouldClose(m_pImpl->window);
+}
+
 void Renderer::Draw(DrawParams& drawParams)
 {
-	uint32_t counter	  = 0;
-	uint32_t frameBufferIndex = 999;
+	auto * pGraphicsPipelineImpl = m_pImpl->graphicsPipelineMap[drawParams.graphicsPipelineName];
 
-	while (!glfwWindowShouldClose(m_pImpl->window)) {
-		VkResult result;
+	VkResult result;
 
-		glfwPollEvents();
+	glfwPollEvents();
 
-		// このフレームで使う GPU リソースのIdを決定．ただしプレゼン完了のセマフォは frameBufferIndex と一致させるので注意．
-		uint32_t gpuIndex = (counter) % 2;
-		counter++;
+	// このフレームで使う GPU リソースのIdを決定．ただしプレゼン完了のセマフォは frameBufferIndex と一致させるので注意．
+	uint32_t gpuIndex = (counter) % 2;
+	counter++;
 
-		if (m_pImpl->isProcessing[gpuIndex]) {
-			vkWaitForFences(m_pImpl->logicalDevice, 1, &m_pImpl->inFlightFence[gpuIndex], VK_TRUE, UINT64_MAX);
-			vkResetFences(m_pImpl->logicalDevice, 1, &m_pImpl->inFlightFence[gpuIndex]);
-			m_pImpl->isProcessing[gpuIndex] = false;
-		}
-
-		if (frameBufferIndex == 999) {
-			result = vkAcquireNextImageKHR(m_pImpl->logicalDevice, m_pImpl->swapChain, UINT64_MAX, m_pImpl->imageAvailableSemaphore[gpuIndex], VK_NULL_HANDLE, &frameBufferIndex);
-		}
-
-		// Commandbuffer
-		vkResetCommandBuffer(m_pImpl->CB[gpuIndex], 0);
-
-		// コマンドバッファにコマンドを記録
-		// コマンドバッファーへのアクセスは同期される必要がある
-		// 複数スレッドでひとつのコマンドバッファにコマンドを書き込まないことを保障する or  スレッドごとにコマンドを持つ
-
-		// コマンドバッファの開始とリセット
-		VkCommandBufferBeginInfo CBBI;
-		CBBI.sType	      = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO; //
-		CBBI.pNext	      = nullptr;
-		CBBI.flags	      = 0;	 // とりあえず 0 にする．マルチパスレンダリングなどでは設定が必要
-		CBBI.pInheritanceInfo = nullptr; // 一次のコマンドバッファでは使われない
-
-		result = vkBeginCommandBuffer(m_pImpl->CB[gpuIndex], &CBBI);
-		if (result != VK_SUCCESS) {
-			std::cout << "fail to begin command buffer!!!" << std::endl;
-			exit(1);
-		}
-
-		VkRenderPassBeginInfo RPBI = {};
-		RPBI.sType		   = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-		RPBI.renderPass		   = m_pImpl->renderPass;
-		RPBI.framebuffer	   = m_pImpl->frameBuffers[frameBufferIndex];
-		RPBI.renderArea.offset	   = { 0, 0 };
-		RPBI.renderArea.extent	   = m_pImpl->swapChainExtent;
-		VkClearValue clearColor;
-		clearColor.color     = { 0.0, 0.0, 0.0, 1.0 };
-		RPBI.clearValueCount = 1;
-		RPBI.pClearValues    = &clearColor;
-		// renderpass 開始を記録
-		vkCmdBeginRenderPass(m_pImpl->CB[gpuIndex], &RPBI, VK_SUBPASS_CONTENTS_INLINE); // renderpass command は一次コマンドで実行される
-
-		// graphicPipeline を bind
-		vkCmdBindPipeline(m_pImpl->CB[gpuIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, m_pImpl->graphicsPipeline);
-
-		vkCmdBindDescriptorSets(m_pImpl->CB[gpuIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, m_pImpl->pipelineLayout, 0, 1, &m_pImpl->descriptorSet, 0, nullptr);
-
-		memset(m_pImpl->mappedData, 0, 16);
-		m_pImpl->temp += 0.01;
-		(*static_cast<float*>(m_pImpl->mappedData)) = std::sin(m_pImpl->temp) * 0.6;
-
-		// VK_MEMORY_PROPERTY_HOST_COHERENT_BIT が真なので flush の必要はないが一応
-		VkMappedMemoryRange memoryRange2;
-		memoryRange2.sType  = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
-		memoryRange2.pNext  = nullptr;
-		memoryRange2.memory = m_pImpl->uniformBufferImpl1.deviceMemory;
-		memoryRange2.offset = 0;
-		memoryRange2.size   = VK_WHOLE_SIZE;
-		result		    = vkFlushMappedMemoryRanges(m_pImpl->logicalDevice, 1, &memoryRange2);
-		if (result != VK_SUCCESS) {
-			std::cout << "faild to flush memory!!!" << std::endl;
-			exit(1);
-		}
-
-		VkDeviceSize vertexBufferOffsets = 0;
-		vkCmdBindVertexBuffers(m_pImpl->CB[gpuIndex], 0, 1, &drawParams.vertexArray[0]->buffer, &vertexBufferOffsets);
-
-		// 動的に決める state を設定
-		vkCmdSetViewport(m_pImpl->CB[gpuIndex], 0, 1, &m_pImpl->viewport);
-		vkCmdSetScissor(m_pImpl->CB[gpuIndex], 0, 1, &m_pImpl->scissor);
-
-		// draw
-		vkCmdDraw(m_pImpl->CB[gpuIndex], 3, 1, 0, 0);
-
-		vkCmdEndRenderPass(m_pImpl->CB[gpuIndex]);
-		result = vkEndCommandBuffer(m_pImpl->CB[gpuIndex]);
-		if (result != VK_SUCCESS) {
-			exit(1);
-		}
-
-		// submit
-
-		VkPipelineStageFlags waitStages = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-		VkSubmitInfo submitInfo		= {};
-		submitInfo.sType		= VK_STRUCTURE_TYPE_SUBMIT_INFO;
-		submitInfo.waitSemaphoreCount	= 1;
-		submitInfo.pWaitSemaphores	= &m_pImpl->imageAvailableSemaphore[gpuIndex];
-		submitInfo.pWaitDstStageMask	= &waitStages;
-		submitInfo.commandBufferCount	= 1;
-		submitInfo.pCommandBuffers	= &m_pImpl->CB[gpuIndex];
-		submitInfo.signalSemaphoreCount = 1;
-		submitInfo.pSignalSemaphores	= &m_pImpl->renderFinishedSemaphore[frameBufferIndex];
-
-		vkQueueSubmit(m_pImpl->queue, 1, &submitInfo, m_pImpl->inFlightFence[gpuIndex]);
-
-		VkPresentInfoKHR PI   = {};
-		PI.sType	      = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-		PI.waitSemaphoreCount = 1;
-		PI.pWaitSemaphores    = &m_pImpl->renderFinishedSemaphore[frameBufferIndex];
-		PI.swapchainCount     = 1;
-		PI.pSwapchains	      = &m_pImpl->swapChain;
-		PI.pImageIndices      = &frameBufferIndex;
-		vkQueuePresentKHR(m_pImpl->queue, &PI);
-
-		m_pImpl->isProcessing[gpuIndex] = true;
-		std::cout << "Loop GpuIndex:" << gpuIndex << " ImageIndex:" << frameBufferIndex << std::endl;
-
-		frameBufferIndex = 999;
+	if (m_pImpl->isProcessing[gpuIndex]) {
+		vkWaitForFences(m_pImpl->logicalDevice, 1, &m_pImpl->inFlightFence[gpuIndex], VK_TRUE, UINT64_MAX);
+		vkResetFences(m_pImpl->logicalDevice, 1, &m_pImpl->inFlightFence[gpuIndex]);
+		m_pImpl->isProcessing[gpuIndex] = false;
 	}
+
+	if (frameBufferIndex == 999) {
+		result = vkAcquireNextImageKHR(m_pImpl->logicalDevice, m_pImpl->swapChain, UINT64_MAX, m_pImpl->imageAvailableSemaphore[gpuIndex], VK_NULL_HANDLE, &frameBufferIndex);
+	}
+
+	// Commandbuffer
+	vkResetCommandBuffer(m_pImpl->CB[gpuIndex], 0);
+
+	// コマンドバッファにコマンドを記録
+	// コマンドバッファーへのアクセスは同期される必要がある
+	// 複数スレッドでひとつのコマンドバッファにコマンドを書き込まないことを保障する or  スレッドごとにコマンドを持つ
+
+	// コマンドバッファの開始とリセット
+	VkCommandBufferBeginInfo CBBI;
+	CBBI.sType	      = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO; //
+	CBBI.pNext	      = nullptr;
+	CBBI.flags	      = 0;	 // とりあえず 0 にする．マルチパスレンダリングなどでは設定が必要
+	CBBI.pInheritanceInfo = nullptr; // 一次のコマンドバッファでは使われない
+
+	result = vkBeginCommandBuffer(m_pImpl->CB[gpuIndex], &CBBI);
+	if (result != VK_SUCCESS) {
+		std::cout << "fail to begin command buffer!!!" << std::endl;
+		exit(1);
+	}
+
+	VkRenderPassBeginInfo RPBI = {};
+	RPBI.sType		   = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+	RPBI.renderPass		   = pGraphicsPipelineImpl->renderPass;
+	RPBI.framebuffer	   = pGraphicsPipelineImpl->pFrameBuffer[frameBufferIndex];
+	RPBI.renderArea.offset	   = { 0, 0 };
+	RPBI.renderArea.extent	   = m_pImpl->swapChainExtent;
+	VkClearValue clearColor;
+	clearColor.color     = { 0.0, 0.0, 0.0, 1.0 };
+	RPBI.clearValueCount = 1;
+	RPBI.pClearValues    = &clearColor;
+	// renderpass 開始を記録
+	vkCmdBeginRenderPass(m_pImpl->CB[gpuIndex], &RPBI, VK_SUBPASS_CONTENTS_INLINE); // renderpass command は一次コマンドで実行される
+
+	// graphicPipeline を bind
+	vkCmdBindPipeline(m_pImpl->CB[gpuIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, pGraphicsPipelineImpl->graphicsPipeline);
+
+	vkCmdBindDescriptorSets(m_pImpl->CB[gpuIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, pGraphicsPipelineImpl->pipelineLayout, 0, 1, &drawParams.descriptorSetInterface.pDescriptorSetImpl->descriptorSet, 0, nullptr);
+
+	VkDeviceSize vertexBufferOffsets = 0;
+	vkCmdBindVertexBuffers(m_pImpl->CB[gpuIndex], 0, 1, &drawParams.vertexArray[0]->buffer, &vertexBufferOffsets);
+
+	// 動的に決める state を設定
+	vkCmdSetViewport(m_pImpl->CB[gpuIndex], 0, 1, &m_pImpl->viewport);
+	vkCmdSetScissor(m_pImpl->CB[gpuIndex], 0, 1, &m_pImpl->scissor);
+
+	// draw
+	vkCmdDraw(m_pImpl->CB[gpuIndex], 3, 1, 0, 0);
+
+	vkCmdEndRenderPass(m_pImpl->CB[gpuIndex]);
+	result = vkEndCommandBuffer(m_pImpl->CB[gpuIndex]);
+	if (result != VK_SUCCESS) {
+		exit(1);
+	}
+
+	// submit
+
+	VkPipelineStageFlags waitStages = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+	VkSubmitInfo submitInfo		= {};
+	submitInfo.sType		= VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submitInfo.waitSemaphoreCount	= 1;
+	submitInfo.pWaitSemaphores	= &m_pImpl->imageAvailableSemaphore[gpuIndex];
+	submitInfo.pWaitDstStageMask	= &waitStages;
+	submitInfo.commandBufferCount	= 1;
+	submitInfo.pCommandBuffers	= &m_pImpl->CB[gpuIndex];
+	submitInfo.signalSemaphoreCount = 1;
+	submitInfo.pSignalSemaphores	= &m_pImpl->renderFinishedSemaphore[frameBufferIndex];
+
+	vkQueueSubmit(m_pImpl->queue, 1, &submitInfo, m_pImpl->inFlightFence[gpuIndex]);
+
+	VkPresentInfoKHR PI   = {};
+	PI.sType	      = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+	PI.waitSemaphoreCount = 1;
+	PI.pWaitSemaphores    = &m_pImpl->renderFinishedSemaphore[frameBufferIndex];
+	PI.swapchainCount     = 1;
+	PI.pSwapchains	      = &m_pImpl->swapChain;
+	PI.pImageIndices      = &frameBufferIndex;
+	vkQueuePresentKHR(m_pImpl->queue, &PI);
+
+	m_pImpl->isProcessing[gpuIndex] = true;
+	std::cout << "Loop GpuIndex:" << gpuIndex << " ImageIndex:" << frameBufferIndex << std::endl;
+
+	frameBufferIndex = 999;
+	
 }
 
 void Renderer::RegisterVertexInputStateImpl3(VertexAttributeLayout* vertexAttributeLayout)

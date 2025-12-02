@@ -12,6 +12,7 @@ int main()
 	Renderer::InitializeParams rendererInitializeParams;
 	rendererInitializeParams.isDebugMode = true;
 	rendererInitializeParams.windowSize  = ivec2(1280, 720);
+	rendererInitializeParams.windowName = "Renderer Test";
 
 	Renderer renderer;
 	renderer.Initialize(rendererInitializeParams);
@@ -91,6 +92,9 @@ int main()
 	Renderer::GpuBuffer uboBuffer = renderer.CreateGpuBuffer(32, Renderer::Uniform);
 	void* uboCpuPtr		      = nullptr;
 	renderer.GetCpuMemoryPointer(uboBuffer, &uboCpuPtr);
+	float * uboFloatCpuPtr = static_cast<float*>(uboCpuPtr);
+	*uboFloatCpuPtr = 0.0f;
+	renderer.UnmapCpuMemoryPointer(uboBuffer);
 
 	Renderer::GpuTexture textureMemory;
 	textureMemory = renderer.CreateGpuTexture(128, 128);
@@ -110,7 +114,7 @@ int main()
 	renderer.UnmapCpuMemoryPointer(stagingBuffer);
 	renderer.TransferStagingBufferToImage(stagingBuffer, textureMemory);
 
-	Renderer::DescriptorSetInterface descriptorSetInterface = renderer.CreateDescriptorSetInterface(0);
+	Renderer::DescriptorSetInterface descriptorSetInterface = renderer.CreateDescriptorSetInterface("testPipeline", 0);
 	Renderer::DescriptorWriterParams descriptorWriterParams;
 	Renderer::DescriptorWriterParams::DescriptorInfo uboDescriptorInfo;
 	uboDescriptorInfo.type	     = Renderer::DescriptorWriterParams::DescriptorInfo::UniformBuffer;
@@ -131,7 +135,21 @@ int main()
 	Renderer::DrawParams drawParams;
 	drawParams.vertexArray.push_back(drawArray.getGpuMemoryImpl());
 	drawParams.descriptorSetInterface = descriptorSetInterface;
-	renderer.Draw(drawParams);
+	drawParams.graphicsPipelineName = "testPipeline";
+
+	uint32_t counter = 0;
+	while(renderer.DrawCondition())
+	{
+		renderer.GetCpuMemoryPointer(uboBuffer, &uboCpuPtr);
+		uboFloatCpuPtr = static_cast<float*>(uboCpuPtr);
+		
+		*uboFloatCpuPtr = std::sin(counter/50.0f);
+		renderer.UnmapCpuMemoryPointer(uboBuffer);
+
+		renderer.Draw(drawParams);
+
+		counter++;
+	}
 
 	return 0;
 }

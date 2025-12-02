@@ -21,11 +21,7 @@ public:
 	VkSemaphore renderFinishedSemaphore[2];
 	VkFence inFlightFence[2];
 	VkCommandBuffer CB[2]; // ダブルバッファ
-	//VkRenderPass renderPass;
-	//VkFramebuffer* frameBuffers;
-	//VkPipeline graphicsPipeline = {};
-	//VkPipelineLayout pipelineLayout;
-	//VkDescriptorSet descriptorSet;
+
 	VkQueue queue;
 	VkExtent2D swapChainExtent = {};
 	uint32_t swapChainImageCount;
@@ -34,20 +30,11 @@ public:
 	VkSurfaceCapabilitiesKHR surfaceCapabilities;
 	VkFormat swapChainImageFormat;
 	VkColorSpaceKHR swapChainColorSpace;
-	VkDescriptorSetLayout* pDescriptorSetLayout;
-
-
-
-
 
 	bool isProcessing[2] = { false, false };
 
 	VkViewport viewport = {}; // フレームバッファのどこにマップされるか
 	VkRect2D scissor = { };
-
-	void* mappedData = nullptr;
-	float temp = 0.0f;
-
 
 	VkDescriptorPool descriptorPool;
 
@@ -79,8 +66,6 @@ public:
 	std::unordered_map<std::string, GraphicsPipelineImpl*> graphicsPipelineMap;
 	std::unordered_map<std::string, VkShaderModule> shaderModuleMap;
 	std::unordered_map<std::string, VertexInputStateImpl*> vertexInputStateImplMap;
-
-	GpuMemoryImpl uniformBufferImpl1;
 
 	VkDevice logicalDevice;
 	uint32_t memory_type_index;

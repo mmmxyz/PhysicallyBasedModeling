@@ -58,14 +58,14 @@ class Renderer {
 
 	GpuBuffer CreateGpuBuffer(uint32_t size, BufferCreateUsage usage);
 	GpuTexture CreateGpuTexture(uint32_t width, uint32_t height);
-	DescriptorSetInterface CreateDescriptorSetInterface(int set);
+	DescriptorSetInterface CreateDescriptorSetInterface(std::string graphicsPipelineName, int set);
 	void WriteDescriptorSet(DescriptorWriterParams& descriptorWriteParams, DescriptorSetInterface& descriptorSetInterface);
 
 	void GetCpuMemoryPointer(GpuBuffer& gpuMemory, void** ppData);
 	void UnmapCpuMemoryPointer(GpuBuffer& gpuMemoryImpl);
 	void TransferStagingBufferToImage(GpuBuffer& stagingBuffer, GpuTexture& textureMemory);
 
-	struct DescriptorSetBindingParams // DescriptorSet ‚Æ“¯’l
+	struct DescriptorSetBindingParams // DescriptorSet ï¿½Æ“ï¿½ï¿½l
 	{
 		enum DescriptorType {
 			UniformBuffer_bit = 0x00000001,
@@ -85,12 +85,12 @@ class Renderer {
 		uint32_t count;
 	};
 
-	struct DescriptorSetLayoutParams // DescriptorSetLayout ‚Æ“¯’l
+	struct DescriptorSetLayoutParams // DescriptorSetLayout ï¿½Æ“ï¿½ï¿½l
 	{
 		ValueArray<DescriptorSetBindingParams*> descriptorSetBindingParams;
 	};
 
-	struct VertexAttributeLayout // VertexInputState ‚Æ“¯’l
+	struct VertexAttributeLayout // VertexInputState ï¿½Æ“ï¿½ï¿½l
 	{
 		std::string name;
 		struct Attributes {
@@ -113,13 +113,13 @@ class Renderer {
 			int binding = 0;
 		};
 
-		// ‚Æ‚è‚ ‚¦‚¸ binding = 0 ŒÅ’è
+		// ï¿½Æ‚è‚ ï¿½ï¿½ï¿½ï¿½ binding = 0 ï¿½Å’ï¿½
 		ValueArray<Attributes> attributes;
 		int stride  = 0;
 		int binding = 0;
 	};
 
-	struct ShaderStageParams // ShaderStage ‚Æ“¯’l
+	struct ShaderStageParams // ShaderStage ï¿½Æ“ï¿½ï¿½l
 	{
 		std::string shaderPath = "";
 		int specializationConstantCount;
@@ -129,14 +129,14 @@ class Renderer {
 		} stageType;
 	};
 
-	struct RenderPassParams // RenderPass ‚Æ“¯’l
+	struct RenderPassParams // RenderPass ï¿½Æ“ï¿½ï¿½l
 	{
 		// TODO;
 		int colorAttachmentCount;
 		int depthAttachmentCount;
 	};
 
-	struct GraphicsPipelineParams // GraphicsPipeline ‚Æ“¯’l
+	struct GraphicsPipelineParams // GraphicsPipeline ï¿½Æ“ï¿½ï¿½l
 	{
 		std::string name;
 		ValueArray<ShaderStageParams*> shaders;
@@ -153,27 +153,27 @@ class Renderer {
 		return VertexAttributeLayout::Attributes::AttributeFormat::Error;
 	}
 
-	// TODO : vulkan ˆË‘¶‚ð‚È‚­‚·
+	// TODO : vulkan ï¿½Ë‘ï¿½ï¿½ï¿½ï¿½È‚ï¿½ï¿½ï¿½
 	template <class ValueType>
 	static void SetVertexAttributeDescription2(VertexAttributeLayout* pVertexAttributeLayout)
 	{
-		// ƒGƒ‰[
-		pVertexAttributeLayout->attributes[0].binding  = 0; // binding ‚Í vkCmdBindVertexBuffers ‚ÌŽw’è
+		// ï¿½Gï¿½ï¿½ï¿½[
+		pVertexAttributeLayout->attributes[0].binding  = 0; // binding ï¿½ï¿½ vkCmdBindVertexBuffers ï¿½ÌŽwï¿½ï¿½
 		pVertexAttributeLayout->attributes[0].location = 0;
-		pVertexAttributeLayout->attributes[0].format   = typeConverterFormat<decltype(ValueType::position)>(); // glsl ‚Å‚Í vec3
+		pVertexAttributeLayout->attributes[0].format   = typeConverterFormat<decltype(ValueType::position)>(); // glsl ï¿½Å‚ï¿½ vec3
 		pVertexAttributeLayout->attributes[0].offset   = offsetof(ValueType, ValueType::position);
 
-		pVertexAttributeLayout->attributes[1].binding  = 0; // binding ‚Í vkCmdBindVertexBuffers ‚ÌŽw’è
+		pVertexAttributeLayout->attributes[1].binding  = 0; // binding ï¿½ï¿½ vkCmdBindVertexBuffers ï¿½ÌŽwï¿½ï¿½
 		pVertexAttributeLayout->attributes[1].location = 1;
-		pVertexAttributeLayout->attributes[1].format   = typeConverterFormat<decltype(ValueType::normal)>(); // glsl ‚Å‚Í vec3
+		pVertexAttributeLayout->attributes[1].format   = typeConverterFormat<decltype(ValueType::normal)>(); // glsl ï¿½Å‚ï¿½ vec3
 		pVertexAttributeLayout->attributes[1].offset   = offsetof(ValueType, ValueType::normal);
 
-		pVertexAttributeLayout->attributes[2].binding  = 0; // binding ‚Í vkCmdBindVertexBuffers ‚ÌŽw’è
+		pVertexAttributeLayout->attributes[2].binding  = 0; // binding ï¿½ï¿½ vkCmdBindVertexBuffers ï¿½ÌŽwï¿½ï¿½
 		pVertexAttributeLayout->attributes[2].location = 2;
-		pVertexAttributeLayout->attributes[2].format   = typeConverterFormat<decltype(ValueType::color)>(); // glsl ‚Å‚Í vec4
+		pVertexAttributeLayout->attributes[2].format   = typeConverterFormat<decltype(ValueType::color)>(); // glsl ï¿½Å‚ï¿½ vec4
 		pVertexAttributeLayout->attributes[2].offset   = offsetof(ValueType, ValueType::color);
 
-		pVertexAttributeLayout->attributes[3].binding  = 0; // binding ‚Í vkCmdBindVertexBuffers ‚ÌŽw’è
+		pVertexAttributeLayout->attributes[3].binding  = 0; // binding ï¿½ï¿½ vkCmdBindVertexBuffers ï¿½ÌŽwï¿½ï¿½
 		pVertexAttributeLayout->attributes[3].location = 3;
 		pVertexAttributeLayout->attributes[3].format   = typeConverterFormat<decltype(ValueType::uv)>();
 		pVertexAttributeLayout->attributes[3].offset   = offsetof(ValueType, ValueType::uv);
@@ -183,7 +183,7 @@ class Renderer {
 	static void CreateVertexAttributeLayout2(VertexAttributeLayout* pVertexAttributeLayout)
 	{
 		pVertexAttributeLayout->name	= typeid(ValueType).name();
-		pVertexAttributeLayout->binding = 0; // binding ‚Í vkCmdBindVertexBuffers ‚ÌŽw’è
+		pVertexAttributeLayout->binding = 0; // binding ï¿½ï¿½ vkCmdBindVertexBuffers ï¿½ÌŽwï¿½ï¿½
 		pVertexAttributeLayout->stride	= sizeof(ValueType);
 
 		pVertexAttributeLayout->attributes.resize(4);
@@ -196,6 +196,7 @@ class Renderer {
 	    public:
 		bool isDebugMode = false;
 		ivec2 windowSize = ivec2(800, 600);
+		std::string windowName;
 
 		GraphicsPipelineParams* pGraphicsPipelineParams;
 	};
@@ -207,7 +208,7 @@ class Renderer {
 	template <class ValueType>
 	void InitializeVertexArray(DrawVertexArray<ValueType>* pDrawArray)
 	{
-		// drawArray.cpp ‚ÉŽÀ‘•‚ª‚È‚¢‚ÆŽ€‚Ê
+		// drawArray.cpp ï¿½ÉŽï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È‚ï¿½ï¿½ÆŽï¿½ï¿½ï¿½
 		pDrawArray->gpuInitialize(m_pImpl);
 	}
 
@@ -217,7 +218,7 @@ class Renderer {
 	template <class ValueType>
 	void UpdateVertexArray(DrawVertexArray<ValueType>* pDrawArray)
 	{
-		// drawArray.cpp ‚ÉŽÀ‘•‚ª‚È‚¢‚ÆŽ€‚Ê
+		// drawArray.cpp ï¿½ÉŽï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È‚ï¿½ï¿½ÆŽï¿½ï¿½ï¿½
 		pDrawArray->updateGpuMemory(m_pImpl);
 	}
 
@@ -225,9 +226,13 @@ class Renderer {
 	    public:
 		std::vector<GpuMemoryImpl*> vertexArray;
 		DescriptorSetInterface descriptorSetInterface;
+		std::string graphicsPipelineName;
 	};
 
+	uint32_t counter = 0;
+	uint32_t  frameBufferIndex = 999;
 	void Draw(DrawParams& drawParams);
+	bool DrawCondition();
 };
 
 template <>

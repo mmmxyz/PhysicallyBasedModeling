@@ -1,5 +1,7 @@
 
-// ‚±‚Ì‡˜‚ÅƒCƒ“ƒNƒ‹[ƒh‚·‚é‚±‚Æ
+#include <cstring>
+
+// ï¿½ï¿½ï¿½Ìï¿½ï¿½ï¿½ï¿½ÅƒCï¿½ï¿½ï¿½Nï¿½ï¿½ï¿½[ï¿½hï¿½ï¿½ï¿½é‚±ï¿½ï¿½
 #include <vulkan/vulkan.h>
 #include <GLFW/glfw3.h>
 
@@ -34,7 +36,7 @@ void DrawVertexArray<ValueType>::updateGpuMemory(RendererImpl* pRendererImpl)
 
 	std::memcpy(mappedData, this->data(), this->size() * sizeof(ValueType));
 
-	// VK_MEMORY_PROPERTY_HOST_COHERENT_BIT ‚ª^‚È‚Ì‚Å flush ‚Ì•K—v‚Í‚È‚¢‚ªˆê‰ž
+	// VK_MEMORY_PROPERTY_HOST_COHERENT_BIT ï¿½ï¿½ï¿½^ï¿½È‚Ì‚ï¿½ flush ï¿½Ì•Kï¿½vï¿½Í‚È‚ï¿½ï¿½ï¿½ï¿½ê‰ž
 	VkMappedMemoryRange memoryRange;
 	memoryRange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
 	memoryRange.pNext = nullptr;
