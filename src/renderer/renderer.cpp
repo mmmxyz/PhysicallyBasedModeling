@@ -16,12 +16,9 @@ void Renderer::CreateGraphicsPipeline(Renderer::GraphicsPipelineParams& graphics
 
 	VkResult result;
 
-	auto pGraphicsPipelineImpl =  new RendererImpl::GraphicsPipelineImpl();
+	auto pGraphicsPipelineImpl				  = new RendererImpl::GraphicsPipelineImpl();
 	m_pImpl->graphicsPipelineMap[graphicsPipelineParams.name] = pGraphicsPipelineImpl;
 
-
-
-	
 	auto createShaderModule = [&](const char* filePath) -> VkShaderModule {
 		if (m_pImpl->shaderModuleMap.find(filePath) != m_pImpl->shaderModuleMap.end()) {
 			return m_pImpl->shaderModuleMap[filePath];
@@ -209,43 +206,9 @@ void Renderer::CreateGraphicsPipeline(Renderer::GraphicsPipelineParams& graphics
 	}
 	// vkDestroyPipelineLayout(logicaldevice, pipelineLayout, nullptr);
 
-	/////// RenderPath 作成
+	pGraphicsPipelineImpl->renderPassName = graphicsPipelineParams.renderPassName;
 
-	// ここでは swap chain の画像を表すカラーバッファのアタッチメントを作成
-	VkAttachmentDescription colorAttachDescription = {};
-	colorAttachDescription.format		       = m_pImpl->swapChainImageFormat;
-	colorAttachDescription.samples		       = VK_SAMPLE_COUNT_1_BIT; // multi sample しない
-	colorAttachDescription.loadOp		       = VK_ATTACHMENT_LOAD_OP_CLEAR;
-	colorAttachDescription.storeOp		       = VK_ATTACHMENT_STORE_OP_STORE;
-	colorAttachDescription.stencilLoadOp	       = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-	colorAttachDescription.stencilStoreOp	       = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-	colorAttachDescription.initialLayout	       = VK_IMAGE_LAYOUT_UNDEFINED;
-	colorAttachDescription.finalLayout	       = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-
-	// attachment 参照
-	VkAttachmentReference colorAttachRef = {};
-	colorAttachRef.attachment	     = 0;					 // index = 0
-	colorAttachRef.layout		     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; // color 最適
-
-	// subpass
-	VkSubpassDescription subpass = {};
-	subpass.pipelineBindPoint    = VK_PIPELINE_BIND_POINT_GRAPHICS;
-	subpass.colorAttachmentCount = 1;
-	subpass.pColorAttachments    = &colorAttachRef; // これで layout(location = 0) out vec4 outColor ができる
-
-	// render pass
-	VkRenderPassCreateInfo RPCI = {};
-	RPCI.sType		    = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-	RPCI.attachmentCount	    = 1;
-	RPCI.pAttachments	    = &colorAttachDescription;
-	RPCI.subpassCount	    = 1;
-	RPCI.pSubpasses		    = &subpass;
-
-	result = vkCreateRenderPass(m_pImpl->logicalDevice, &RPCI, nullptr, &pGraphicsPipelineImpl->renderPass);
-	if (result != VK_SUCCESS) {
-		exit(1);
-	}
-	///vkDestroyRenderPass(logicaldevice, renderPass, nullptr);
+	auto* pRenderPass = m_pImpl->renderPassImpl[graphicsPipelineParams.renderPassName];
 
 	// Graphic Pipeline
 
@@ -265,7 +228,7 @@ void Renderer::CreateGraphicsPipeline(Renderer::GraphicsPipelineParams& graphics
 
 	GPCI.layout = pGraphicsPipelineImpl->pipelineLayout;
 
-	GPCI.renderPass = pGraphicsPipelineImpl->renderPass;
+	GPCI.renderPass = pRenderPass->renderPass;
 	GPCI.subpass	= 0; // index = 0;
 
 	GPCI.basePipelineHandle = VK_NULL_HANDLE; // 不使用
@@ -278,14 +241,12 @@ void Renderer::CreateGraphicsPipeline(Renderer::GraphicsPipelineParams& graphics
 
 	// framebuffer 作成
 
-	// frame buffer ha renderpass ごとに必要か？
-
 	pGraphicsPipelineImpl->pFrameBuffer = new VkFramebuffer[m_pImpl->swapChainImageCount];
 	for (int i = 0; i < m_pImpl->swapChainImageCount; i++) {
 		VkFramebufferCreateInfo FCI = {};
 		FCI.sType		    = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
 		FCI.flags		    = 0;
-		FCI.renderPass		    = pGraphicsPipelineImpl->renderPass;
+		FCI.renderPass		    = pRenderPass->renderPass;
 		FCI.attachmentCount	    = 1;
 		FCI.pAttachments	    = &m_pImpl->swapChainImageViews[i];
 		FCI.width		    = m_pImpl->surfaceCapabilities.currentExtent.width;
@@ -297,6 +258,71 @@ void Renderer::CreateGraphicsPipeline(Renderer::GraphicsPipelineParams& graphics
 			exit(1);
 		}
 	}
+}
+
+void Renderer::CreateRenderPass(Renderer::RenderPassParams& renderPassParams)
+{
+	/////// RenderPath 作成
+
+	auto* pRenderPassImpl = new RendererImpl::RenderPassImpl();
+	pRenderPassImpl->name = renderPassParams.name;
+
+	VkAttachmentDescription attachments[128] = {};
+	for (int i = 0; i < renderPassParams.attachments.size(); i++) {
+		auto& attachmentParams = renderPassParams.attachments[i];
+		auto& attachment       = attachments[i];
+
+		switch (attachmentParams.format) {
+		case AttachmentParams::Format::SameAsSwapChain:
+			attachment.format = m_pImpl->swapChainImageFormat;
+			break;
+		case AttachmentParams::Format::RGBA8_SNORM:
+			attachment.format = VkFormat::VK_FORMAT_R8G8B8A8_SNORM;
+			break;
+		case AttachmentParams::Format::DEPTH16_UNORM:
+			attachment.format = VkFormat::VK_FORMAT_D16_UNORM;
+			break;
+		}
+		attachment.samples	  = VK_SAMPLE_COUNT_1_BIT; // multi sample しない
+		attachment.loadOp	  = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		attachment.storeOp	  = VK_ATTACHMENT_STORE_OP_STORE;
+		attachment.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		attachment.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
+		attachment.finalLayout	  = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	}
+
+	VkAttachmentReference attatchmentRefs[64][64];
+	VkSubpassDescription subpasses[64];
+
+	for (int i = 0; i < renderPassParams.subpasses.size(); i++) {
+		auto& subpassParam		 = renderPassParams.subpasses[i];
+		auto& subpassDesc		 = subpasses[i];
+		subpassDesc.colorAttachmentCount = subpassParam.colorAttachments.size();
+		subpassDesc.pColorAttachments	 = static_cast<VkAttachmentReference*>(attatchmentRefs[i]);
+
+		for (int j = 0; j < subpassParam.colorAttachments.size(); j++) {
+			attatchmentRefs[i][j].attachment = subpassParam.colorAttachments[j];
+			attatchmentRefs[i][j].layout	 = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		}
+
+		subpassDesc.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+	}
+
+	// render pass
+	VkRenderPassCreateInfo RPCI = {};
+	RPCI.sType		    = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+	RPCI.attachmentCount	    = renderPassParams.attachments.size();
+	RPCI.pAttachments	    = attachments;
+	RPCI.subpassCount	    = renderPassParams.subpasses.size();
+	RPCI.pSubpasses		    = subpasses;
+
+	VkResult result = vkCreateRenderPass(m_pImpl->logicalDevice, &RPCI, nullptr, &pRenderPassImpl->renderPass);
+	if (result != VK_SUCCESS) {
+		exit(1);
+	}
+
+	m_pImpl->renderPassImpl[renderPassParams.name] = pRenderPassImpl;
 }
 
 Renderer::GpuBuffer Renderer::CreateGpuBuffer(uint32_t size, Renderer::BufferCreateUsage usage)
@@ -318,7 +344,7 @@ Renderer::GpuTexture Renderer::CreateGpuTexture(uint32_t width, uint32_t height)
 
 Renderer::DescriptorSetInterface Renderer::CreateDescriptorSetInterface(std::string graphicsPipelineName, int set)
 {
-	auto * pGraphicsPipelineImpl = m_pImpl->graphicsPipelineMap[graphicsPipelineName];
+	auto* pGraphicsPipelineImpl = m_pImpl->graphicsPipelineMap[graphicsPipelineName];
 
 	DescriptorSetImpl* pDescriptorSetImpl = new DescriptorSetImpl();
 	pDescriptorSetImpl->set		      = set;
@@ -997,11 +1023,6 @@ void Renderer::Initialize(InitializeParams& initializeParams)
 		}
 	}
 
-
-
-
-
-
 	VkDescriptorPoolSize poolSize[2];
 	// ubo用
 	poolSize[0]		    = {};
@@ -1081,7 +1102,8 @@ bool Renderer::DrawCondition()
 
 void Renderer::Draw(DrawParams& drawParams)
 {
-	auto * pGraphicsPipelineImpl = m_pImpl->graphicsPipelineMap[drawParams.graphicsPipelineName];
+	auto* pGraphicsPipelineImpl = m_pImpl->graphicsPipelineMap[drawParams.graphicsPipelineName];
+	auto& renderPass	    = m_pImpl->renderPassImpl[pGraphicsPipelineImpl->renderPassName]->renderPass;
 
 	VkResult result;
 
@@ -1123,7 +1145,7 @@ void Renderer::Draw(DrawParams& drawParams)
 
 	VkRenderPassBeginInfo RPBI = {};
 	RPBI.sType		   = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-	RPBI.renderPass		   = pGraphicsPipelineImpl->renderPass;
+	RPBI.renderPass		   = renderPass;
 	RPBI.framebuffer	   = pGraphicsPipelineImpl->pFrameBuffer[frameBufferIndex];
 	RPBI.renderArea.offset	   = { 0, 0 };
 	RPBI.renderArea.extent	   = m_pImpl->swapChainExtent;
@@ -1183,7 +1205,6 @@ void Renderer::Draw(DrawParams& drawParams)
 	std::cout << "Loop GpuIndex:" << gpuIndex << " ImageIndex:" << frameBufferIndex << std::endl;
 
 	frameBufferIndex = 999;
-	
 }
 
 void Renderer::RegisterVertexInputStateImpl3(VertexAttributeLayout* vertexAttributeLayout)

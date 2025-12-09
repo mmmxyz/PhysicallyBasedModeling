@@ -58,14 +58,32 @@ int main()
 	graphicsPipelineParams.descriptorSetParams.push_back(&descriptorSetLayout);
 
 	Renderer::RenderPassParams renderPassParams;
-	graphicsPipelineParams.pRenderPassParams = &renderPassParams;
+	renderPassParams.name = "RenderPass";
+	renderPassParams.attachments = {
+		{
+			Renderer::AttachmentParams::Format::SameAsSwapChain,
+			true,
+			true
+		},
+	};
+	renderPassParams.subpasses = {
+		{
+			{
+				0,
+			},
+			-1
+		}
+	};
 
+	renderer.CreateRenderPass(renderPassParams);
+
+	graphicsPipelineParams.renderPassName = "RenderPass";
 	graphicsPipelineParams.pushConstant = 0;
 
 	renderer.CreateGraphicsPipeline(graphicsPipelineParams);
 
 	RootAllocator RootAllocator;
-	TypeAllocator<BasicVertex> vertexAllocator(&RootAllocator, "aa");
+	TypeAllocator<BasicVertex> vertexAllocator(&RootAllocator, "vertexAllocator");
 	auto drawArray = DrawVertexArray<BasicVertex>(3, vertexAllocator);
 
 	drawArray[0].position(0) = -0.5f;

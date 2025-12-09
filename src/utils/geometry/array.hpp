@@ -14,7 +14,7 @@ class ValueArray {
 
     public:
 	ValueArray()
-	    : buffer(*(new TypeAllocator<ValueType>(&m_RootAllocator, "aa")))
+	    : buffer(*(new TypeAllocator<ValueType>(&m_RootAllocator, "Default ValueArray Allocator")))
 	{
 	}
 

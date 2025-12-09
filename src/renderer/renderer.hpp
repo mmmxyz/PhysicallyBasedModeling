@@ -129,11 +129,30 @@ class Renderer {
 		} stageType;
 	};
 
-	struct RenderPassParams // RenderPass �Ɠ��l
-	{
-		// TODO;
-		int colorAttachmentCount;
-		int depthAttachmentCount;
+	struct AttachmentParams {
+		enum Format {
+			Undef,
+			SameAsSwapChain,
+			RGBA8_SNORM,
+			DEPTH16_UNORM,
+		};
+
+		Format format = Undef;
+		bool clear    = true;
+		bool store    = true;
+		// initialLayout
+		// finalLayout
+	};
+
+	struct SubpassParams {
+		std::vector<int> colorAttachments;
+		int depthAttathment;
+	};
+
+	struct RenderPassParams {
+		std::string name;
+		std::vector<AttachmentParams> attachments;
+		std::vector<SubpassParams> subpasses;
 	};
 
 	struct GraphicsPipelineParams // GraphicsPipeline �Ɠ��l
@@ -141,8 +160,8 @@ class Renderer {
 		std::string name;
 		ValueArray<ShaderStageParams*> shaders;
 		std::string vertexLayoutName;
+		std::string renderPassName;
 		ValueArray<DescriptorSetLayoutParams*> descriptorSetParams;
-		RenderPassParams* pRenderPassParams;
 		int pushConstant;
 		// TODO primitive, blend, rasterization, depthstencil state
 	};
@@ -205,6 +224,8 @@ class Renderer {
 
 	void CreateGraphicsPipeline(GraphicsPipelineParams& graphicsPipelineParams);
 
+	void CreateRenderPass(RenderPassParams& renderPassParams);
+
 	template <class ValueType>
 	void InitializeVertexArray(DrawVertexArray<ValueType>* pDrawArray)
 	{
@@ -229,8 +250,8 @@ class Renderer {
 		std::string graphicsPipelineName;
 	};
 
-	uint32_t counter = 0;
-	uint32_t  frameBufferIndex = 999;
+	uint32_t counter	  = 0;
+	uint32_t frameBufferIndex = 999;
 	void Draw(DrawParams& drawParams);
 	bool DrawCondition();
 };

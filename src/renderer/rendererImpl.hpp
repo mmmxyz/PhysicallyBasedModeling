@@ -44,9 +44,9 @@ public:
 		std::string name;
 		VkPipeline graphicsPipeline;
 		VkPipelineLayout pipelineLayout;
-		VkRenderPass renderPass;
 		std::vector<VkDescriptorSetLayout> pDescriptorSetLayout;
 		VkFramebuffer * pFrameBuffer;
+		std::string renderPassName;
 	};
 
 	class VertexInputStateImpl
@@ -63,9 +63,17 @@ public:
 		}
 	};
 
+	class RenderPassImpl
+	{
+	public:
+		std::string name;
+		VkRenderPass renderPass;		
+	};
+
 	std::unordered_map<std::string, GraphicsPipelineImpl*> graphicsPipelineMap;
 	std::unordered_map<std::string, VkShaderModule> shaderModuleMap;
 	std::unordered_map<std::string, VertexInputStateImpl*> vertexInputStateImplMap;
+	std::unordered_map<std::string, RenderPassImpl*> renderPassImpl;
 
 	VkDevice logicalDevice;
 	uint32_t memory_type_index;
