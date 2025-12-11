@@ -12,7 +12,7 @@ int main()
 	Renderer::InitializeParams rendererInitializeParams;
 	rendererInitializeParams.isDebugMode = true;
 	rendererInitializeParams.windowSize  = ivec2(1280, 720);
-	rendererInitializeParams.windowName = "Renderer Test";
+	rendererInitializeParams.windowName  = "Renderer Test";
 
 	Renderer renderer;
 	renderer.Initialize(rendererInitializeParams);
@@ -58,27 +58,23 @@ int main()
 	graphicsPipelineParams.descriptorSetParams.push_back(&descriptorSetLayout);
 
 	Renderer::RenderPassParams renderPassParams;
-	renderPassParams.name = "RenderPass";
+	renderPassParams.name	     = "RenderPass";
 	renderPassParams.attachments = {
-		{
-			Renderer::AttachmentParams::Format::SameAsSwapChain,
-			true,
-			true
-		},
+		{ Renderer::AttachmentParams::Format::SameAsSwapChain,
+		    true,
+		    true },
 	};
 	renderPassParams.subpasses = {
-		{
-			{
-				0,
-			},
-			-1
-		}
+		{ {
+		      0,
+		  },
+		    -1 }
 	};
 
 	renderer.CreateRenderPass(renderPassParams);
 
-	graphicsPipelineParams.renderPassName = "RenderPass";
-	graphicsPipelineParams.pushConstant = 0;
+	graphicsPipelineParams.renderPassName	= "RenderPass";
+	graphicsPipelineParams.pushConstantSize = sizeof(uint32_t);
 
 	renderer.CreateGraphicsPipeline(graphicsPipelineParams);
 
@@ -110,8 +106,8 @@ int main()
 	Renderer::GpuBuffer uboBuffer = renderer.CreateGpuBuffer(32, Renderer::Uniform);
 	void* uboCpuPtr		      = nullptr;
 	renderer.GetCpuMemoryPointer(uboBuffer, &uboCpuPtr);
-	float * uboFloatCpuPtr = static_cast<float*>(uboCpuPtr);
-	*uboFloatCpuPtr = 0.0f;
+	float* uboFloatCpuPtr = static_cast<float*>(uboCpuPtr);
+	*uboFloatCpuPtr	      = 0.0f;
 	renderer.UnmapCpuMemoryPointer(uboBuffer);
 
 	Renderer::GpuTexture textureMemory;
@@ -153,20 +149,33 @@ int main()
 	Renderer::DrawParams drawParams;
 	drawParams.vertexArray.push_back(drawArray.getGpuMemoryImpl());
 	drawParams.descriptorSetInterface = descriptorSetInterface;
-	drawParams.graphicsPipelineName = "testPipeline";
+	drawParams.graphicsPipelineName	  = "testPipeline";
 
 	uint32_t counter = 0;
-	while(renderer.DrawCondition())
-	{
+	while (renderer.DrawCondition()) {
+		renderer.DrawStart();
+
 		renderer.GetCpuMemoryPointer(uboBuffer, &uboCpuPtr);
-		uboFloatCpuPtr = static_cast<float*>(uboCpuPtr);
-		
-		*uboFloatCpuPtr = std::sin(counter/50.0f);
+		uboFloatCpuPtr	= static_cast<float*>(uboCpuPtr);
+		*uboFloatCpuPtr = std::sin(counter / 50.0f) * 0.6f;
 		renderer.UnmapCpuMemoryPointer(uboBuffer);
+
+		Renderer::UpdatePushConstantParams updatePushConstantParams;
+		updatePushConstantParams.graphicsPipelineName = "testPipeline";
+
+		int32_t foo = ((counter / 30) % 2 == 0) ? 1 : -1;
+
+		updatePushConstantParams.pData	     = &foo;
+		updatePushConstantParams.size	     = sizeof(int32_t);
+		updatePushConstantParams.shaderStage = Renderer::ShaderStage::VertexBit | Renderer::ShaderStage::FragmentBit;
+
+		renderer.UpdatePushConstant(updatePushConstantParams);
 
 		renderer.Draw(drawParams);
 
 		counter++;
+
+		renderer.DrawEnd();
 	}
 
 	return 0;

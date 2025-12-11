@@ -188,6 +188,11 @@ void Renderer::CreateGraphicsPipeline(Renderer::GraphicsPipelineParams& graphics
 	PCBSC.attachmentCount			  = 1;
 	PCBSC.pAttachments			  = &PCBAS;
 
+	VkPushConstantRange pushConstantRange;
+	pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+	pushConstantRange.offset     = 0;
+	pushConstantRange.size	     = graphicsPipelineParams.pushConstantSize;
+
 	// パイプラインレイアウト作成
 	VkPipelineLayoutCreateInfo PLCI = {};
 	PLCI.sType			= VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -195,8 +200,8 @@ void Renderer::CreateGraphicsPipeline(Renderer::GraphicsPipelineParams& graphics
 	PLCI.pNext			= nullptr;
 	PLCI.setLayoutCount		= 0;
 	PLCI.pSetLayouts		= nullptr;
-	PLCI.pushConstantRangeCount	= 0; // uniform buffer は使わない
-	PLCI.pPushConstantRanges	= nullptr;
+	PLCI.pushConstantRangeCount	= 1;
+	PLCI.pPushConstantRanges	= &pushConstantRange;
 	PLCI.setLayoutCount		= descriptorSetCounter;
 	PLCI.pSetLayouts		= pGraphicsPipelineImpl->pDescriptorSetLayout.data();
 
@@ -1100,18 +1105,13 @@ bool Renderer::DrawCondition()
 	return !glfwWindowShouldClose(m_pImpl->window);
 }
 
-void Renderer::Draw(DrawParams& drawParams)
+void Renderer::DrawStart()
 {
-	auto* pGraphicsPipelineImpl = m_pImpl->graphicsPipelineMap[drawParams.graphicsPipelineName];
-	auto& renderPass	    = m_pImpl->renderPassImpl[pGraphicsPipelineImpl->renderPassName]->renderPass;
-
 	VkResult result;
-
 	glfwPollEvents();
 
 	// このフレームで使う GPU リソースのIdを決定．ただしプレゼン完了のセマフォは frameBufferIndex と一致させるので注意．
 	uint32_t gpuIndex = (counter) % 2;
-	counter++;
 
 	if (m_pImpl->isProcessing[gpuIndex]) {
 		vkWaitForFences(m_pImpl->logicalDevice, 1, &m_pImpl->inFlightFence[gpuIndex], VK_TRUE, UINT64_MAX);
@@ -1142,6 +1142,30 @@ void Renderer::Draw(DrawParams& drawParams)
 		std::cout << "fail to begin command buffer!!!" << std::endl;
 		exit(1);
 	}
+}
+
+bool Renderer::UpdatePushConstant(UpdatePushConstantParams& pushConstantParams)
+{
+	uint32_t gpuIndex = (counter) % 2;
+
+	auto* pGraphicsPipelineImpl = m_pImpl->graphicsPipelineMap[pushConstantParams.graphicsPipelineName];
+
+	VkShaderStageFlags shaderStageBit = 0;
+	if (pushConstantParams.shaderStage & ShaderStage::VertexBit)
+		shaderStageBit |= VK_SHADER_STAGE_VERTEX_BIT;
+	if (pushConstantParams.shaderStage & ShaderStage::FragmentBit)
+		shaderStageBit |= VK_SHADER_STAGE_FRAGMENT_BIT;
+
+	vkCmdPushConstants(m_pImpl->CB[gpuIndex], pGraphicsPipelineImpl->pipelineLayout, shaderStageBit, 0, pushConstantParams.size, pushConstantParams.pData);
+}
+
+void Renderer::Draw(DrawParams& drawParams)
+{
+	auto* pGraphicsPipelineImpl = m_pImpl->graphicsPipelineMap[drawParams.graphicsPipelineName];
+	auto& renderPass	    = m_pImpl->renderPassImpl[pGraphicsPipelineImpl->renderPassName]->renderPass;
+
+	VkResult result;
+	uint32_t gpuIndex = (counter) % 2;
 
 	VkRenderPassBeginInfo RPBI = {};
 	RPBI.sType		   = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -1159,7 +1183,7 @@ void Renderer::Draw(DrawParams& drawParams)
 	// graphicPipeline を bind
 	vkCmdBindPipeline(m_pImpl->CB[gpuIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, pGraphicsPipelineImpl->graphicsPipeline);
 
-	vkCmdBindDescriptorSets(m_pImpl->CB[gpuIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, pGraphicsPipelineImpl->pipelineLayout, 0, 1, &drawParams.descriptorSetInterface.pDescriptorSetImpl->descriptorSet, 0, nullptr);
+	vkCmdBindDescriptorSets(m_pImpl->CB[gpuIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, pGraphicsPipelineImpl->pipelineLayout, drawParams.descriptorSetInterface.pDescriptorSetImpl->set, 1, &drawParams.descriptorSetInterface.pDescriptorSetImpl->descriptorSet, 0, nullptr);
 
 	VkDeviceSize vertexBufferOffsets = 0;
 	vkCmdBindVertexBuffers(m_pImpl->CB[gpuIndex], 0, 1, &drawParams.vertexArray[0]->buffer, &vertexBufferOffsets);
@@ -1176,9 +1200,13 @@ void Renderer::Draw(DrawParams& drawParams)
 	if (result != VK_SUCCESS) {
 		exit(1);
 	}
+}
+
+void Renderer::DrawEnd()
+{
+	uint32_t gpuIndex = (counter) % 2;
 
 	// submit
-
 	VkPipelineStageFlags waitStages = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
 	VkSubmitInfo submitInfo		= {};
 	submitInfo.sType		= VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -1205,6 +1233,8 @@ void Renderer::Draw(DrawParams& drawParams)
 	std::cout << "Loop GpuIndex:" << gpuIndex << " ImageIndex:" << frameBufferIndex << std::endl;
 
 	frameBufferIndex = 999;
+
+	counter++;
 }
 
 void Renderer::RegisterVertexInputStateImpl3(VertexAttributeLayout* vertexAttributeLayout)

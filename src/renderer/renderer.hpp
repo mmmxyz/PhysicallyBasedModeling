@@ -18,6 +18,12 @@ class Renderer {
 	RendererImpl* m_pImpl = nullptr;
 
     public:
+	enum ShaderStage{
+		VertexBit = 0x00000001,
+		FragmentBit = 0x00000010,
+		ComputeBit = 0x00000011,
+	};
+
 	enum BufferCreateUsage {
 		Uniform,
 		Vertex,
@@ -162,7 +168,7 @@ class Renderer {
 		std::string vertexLayoutName;
 		std::string renderPassName;
 		ValueArray<DescriptorSetLayoutParams*> descriptorSetParams;
-		int pushConstant;
+		int pushConstantSize;
 		// TODO primitive, blend, rasterization, depthstencil state
 	};
 
@@ -250,10 +256,23 @@ class Renderer {
 		std::string graphicsPipelineName;
 	};
 
+	class UpdatePushConstantParams
+	{
+		public:
+		std::string graphicsPipelineName;
+		int shaderStage;
+		void * pData = nullptr;
+		int32_t size = 0;
+	};
+
+	bool UpdatePushConstant(UpdatePushConstantParams & pushConstantParams);
+
 	uint32_t counter	  = 0;
 	uint32_t frameBufferIndex = 999;
-	void Draw(DrawParams& drawParams);
 	bool DrawCondition();
+	void DrawStart();
+	void Draw(DrawParams& drawParams);
+	void DrawEnd();
 };
 
 template <>
