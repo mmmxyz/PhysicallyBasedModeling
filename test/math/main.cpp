@@ -31,11 +31,15 @@ int main(int argc, char const* argv[])
 
 	std::cout << m.transpose() << std::endl;
 
-	fmat3 m2(0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0);
+	fmat3 m2 {0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0};
 
 	std::cout << m2 << std::endl;
 
-	fmat3 m3(0.0, 1.0, 2.0, 1.0, 0.0, 0.0, 6.0, 7.0, 8.0);
+	fmat3 m3{
+		fvec3{0.0, 1.0, 2.0},
+		fvec3{1.0, 0.0, 0.0},
+		fvec3{6.0, 7.0, 8.0}
+	};
 
 	std::cout << m3 << std::endl;
 

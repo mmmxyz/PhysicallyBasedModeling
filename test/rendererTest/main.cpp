@@ -1,4 +1,5 @@
 
+#include "src/utils/mathfunc/mathUtils.hpp"
 #include "src/renderer/renderer.hpp"
 #include "src/renderer/mesh/drawArray.hpp"
 #include "src/utils/memory/allocator.hpp"
@@ -150,6 +151,9 @@ int main()
 	drawParams.vertexArray.push_back(drawArray.getGpuMemoryImpl());
 	drawParams.descriptorSetInterface = descriptorSetInterface;
 	drawParams.graphicsPipelineName	  = "testPipeline";
+
+
+	auto persMat = makeProjectionMatrix(0.1, 100.0, 1.0, 1.0, 1.0, 1.0);
 
 	uint32_t counter = 0;
 	while (renderer.DrawCondition()) {
