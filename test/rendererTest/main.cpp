@@ -6,7 +6,81 @@
 
 #include <filesystem>
 
-#include <fstream>
+class DrawObject
+{
+	public:
+	Renderer::DescriptorSetInterface descriptorSetInterface;
+	DrawVertexArray<BasicVertex> drawArray;
+
+	Renderer::GpuBuffer uboBuffer;
+	Renderer::GpuTexture textureMemory;
+
+	Renderer::DescriptorWriterParams descriptorWriterParams;
+
+	DrawObject(TypeAllocator<BasicVertex> & allocator)
+		: drawArray(0, allocator)
+	{
+
+	}
+
+	void Initialize(Renderer& renderer)
+	{
+
+		drawArray.resize(3);
+
+		renderer.InitializeVertexArray(&drawArray);
+
+		uboBuffer = renderer.CreateGpuBuffer(32, Renderer::Uniform);
+		void* uboCpuPtr = nullptr;
+		renderer.GetCpuMemoryPointer(uboBuffer, &uboCpuPtr);
+		float* uboFloatCpuPtr = static_cast<float*>(uboCpuPtr);
+		*uboFloatCpuPtr = 0.0f;
+		renderer.UnmapCpuMemoryPointer(uboBuffer);
+
+		textureMemory;
+		textureMemory = renderer.CreateGpuTexture(128, 128);
+
+		Renderer::GpuBuffer stagingBuffer = renderer.CreateGpuBuffer(128 * 128 * 4, Renderer::Transfer);
+		uint32_t* stagingBufferCpu = nullptr;
+		renderer.GetCpuMemoryPointer(stagingBuffer, (void**)&stagingBufferCpu);
+		for (uint32_t i = 0; i < 128; i++) {
+			for (uint32_t j = 0; j < 128; j++) {
+				if ((i / 8 + j / 8) % 2 == 0) {
+					stagingBufferCpu[128 * i + j] = 0xFF555555;
+				}
+				else {
+					stagingBufferCpu[128 * i + j] = 0xFFFFFFFF;
+				}
+			}
+		}
+		renderer.UnmapCpuMemoryPointer(stagingBuffer);
+		renderer.TransferStagingBufferToImage(stagingBuffer, textureMemory);
+
+
+
+		descriptorSetInterface = renderer.CreateDescriptorSetInterface("testPipeline", 0);
+
+		Renderer::DescriptorWriterParams::DescriptorInfo uboDescriptorInfo;
+		uboDescriptorInfo.type = Renderer::DescriptorWriterParams::DescriptorInfo::UniformBuffer;
+		uboDescriptorInfo.bindingNum = 0;
+		uboDescriptorInfo.count = 1;
+		uboDescriptorInfo.pResources.resize(1);
+		uboDescriptorInfo.pResources[0] = uboBuffer.pGpuMemoryImpl;
+		descriptorWriterParams.descriptorInfos.push_back(uboDescriptorInfo);
+		Renderer::DescriptorWriterParams::DescriptorInfo textureDescriptorInfo;
+		textureDescriptorInfo.type = Renderer::DescriptorWriterParams::DescriptorInfo::Combined_Image_Sampler;
+		textureDescriptorInfo.bindingNum = 1;
+		textureDescriptorInfo.count = 1;
+		textureDescriptorInfo.pResources.resize(1);
+		textureDescriptorInfo.pResources[0] = textureMemory.pGpuTextureMemoryImpl;
+		descriptorWriterParams.descriptorInfos.push_back(textureDescriptorInfo);
+	}
+
+	void WriteDescriptorSet(Renderer& renderer)
+	{
+		renderer.WriteDescriptorSet(descriptorWriterParams, descriptorSetInterface);
+	}
+};
 
 int main()
 {
@@ -79,90 +153,61 @@ int main()
 
 	renderer.CreateGraphicsPipeline(graphicsPipelineParams);
 
+
+	//////////
+
 	RootAllocator RootAllocator;
 	TypeAllocator<BasicVertex> vertexAllocator(&RootAllocator, "vertexAllocator");
-	auto drawArray = DrawVertexArray<BasicVertex>(3, vertexAllocator);
 
-	drawArray[0].position(0) = -0.5f;
-	drawArray[0].position(1) = 0.0f;
-	drawArray[0].position(2) = 0.0f;
-	drawArray[0].uv(0)	 = 0.0f;
-	drawArray[0].uv(1)	 = 1.0f;
 
-	drawArray[1].position(0) = 0.5f;
-	drawArray[1].position(1) = 0.0f;
-	drawArray[1].position(2) = 0.0f;
-	drawArray[1].uv(0)	 = 1.0f;
-	drawArray[1].uv(1)	 = 1.0f;
+	DrawObject drawObject(vertexAllocator);
+	drawObject.Initialize(renderer);
 
-	drawArray[2].position(0) = 0.0f;
-	drawArray[2].position(1) = 0.5f;
-	drawArray[2].position(2) = 0.0f;
-	drawArray[2].uv(0)	 = 0.5f;
-	drawArray[2].uv(1)	 = 0.0f;
 
-	renderer.InitializeVertexArray(&drawArray);
-	renderer.UpdateVertexArray(&drawArray);
+	drawObject.WriteDescriptorSet(renderer);
 
-	Renderer::GpuBuffer uboBuffer = renderer.CreateGpuBuffer(32, Renderer::Uniform);
-	void* uboCpuPtr		      = nullptr;
-	renderer.GetCpuMemoryPointer(uboBuffer, &uboCpuPtr);
-	float* uboFloatCpuPtr = static_cast<float*>(uboCpuPtr);
-	*uboFloatCpuPtr	      = 0.0f;
-	renderer.UnmapCpuMemoryPointer(uboBuffer);
 
-	Renderer::GpuTexture textureMemory;
-	textureMemory = renderer.CreateGpuTexture(128, 128);
 
-	Renderer::GpuBuffer stagingBuffer = renderer.CreateGpuBuffer(128 * 128 * 4, Renderer::Transfer);
-	uint32_t* stagingBufferCpu	  = nullptr;
-	renderer.GetCpuMemoryPointer(stagingBuffer, (void**)&stagingBufferCpu);
-	for (uint32_t i = 0; i < 128; i++) {
-		for (uint32_t j = 0; j < 128; j++) {
-			if ((i / 8 + j / 8) % 2 == 0) {
-				stagingBufferCpu[128 * i + j] = 0xFF555555;
-			} else {
-				stagingBufferCpu[128 * i + j] = 0xFFFFFFFF;
-			}
-		}
-	}
-	renderer.UnmapCpuMemoryPointer(stagingBuffer);
-	renderer.TransferStagingBufferToImage(stagingBuffer, textureMemory);
 
-	Renderer::DescriptorSetInterface descriptorSetInterface = renderer.CreateDescriptorSetInterface("testPipeline", 0);
-	Renderer::DescriptorWriterParams descriptorWriterParams;
-	Renderer::DescriptorWriterParams::DescriptorInfo uboDescriptorInfo;
-	uboDescriptorInfo.type	     = Renderer::DescriptorWriterParams::DescriptorInfo::UniformBuffer;
-	uboDescriptorInfo.bindingNum = 0;
-	uboDescriptorInfo.count	     = 1;
-	uboDescriptorInfo.pResources.resize(1);
-	uboDescriptorInfo.pResources[0] = uboBuffer.pGpuMemoryImpl;
-	descriptorWriterParams.descriptorInfos.push_back(&uboDescriptorInfo);
-	Renderer::DescriptorWriterParams::DescriptorInfo textureDescriptorInfo;
-	textureDescriptorInfo.type	 = Renderer::DescriptorWriterParams::DescriptorInfo::Combined_Image_Sampler;
-	textureDescriptorInfo.bindingNum = 1;
-	textureDescriptorInfo.count	 = 1;
-	textureDescriptorInfo.pResources.resize(1);
-	textureDescriptorInfo.pResources[0] = textureMemory.pGpuTextureMemoryImpl;
-	descriptorWriterParams.descriptorInfos.push_back(&textureDescriptorInfo);
-	renderer.WriteDescriptorSet(descriptorWriterParams, descriptorSetInterface);
+	drawObject.drawArray[0].position(0) = -0.5f;
+	drawObject.drawArray[0].position(1) = 0.0f;
+	drawObject.drawArray[0].position(2) = 0.0f;
+	drawObject.drawArray[0].uv(0) = 0.0f;
+	drawObject.drawArray[0].uv(1) = 1.0f;
+
+	drawObject.drawArray[1].position(0) = 0.5f;
+	drawObject.drawArray[1].position(1) = 0.0f;
+	drawObject.drawArray[1].position(2) = 0.0f;
+	drawObject.drawArray[1].uv(0) = 1.0f;
+	drawObject.drawArray[1].uv(1) = 1.0f;
+
+	drawObject.drawArray[2].position(0) = 0.0f;
+	drawObject.drawArray[2].position(1) = 0.5f;
+	drawObject.drawArray[2].position(2) = 0.0f;
+	drawObject.drawArray[2].uv(0) = 0.5f;
+	drawObject.drawArray[2].uv(1) = 0.0f;
+	renderer.UpdateVertexArray(&drawObject.drawArray);
+
+
+
 
 	Renderer::DrawParams drawParams;
-	drawParams.vertexArray.push_back(drawArray.getGpuMemoryImpl());
-	drawParams.descriptorSetInterface = descriptorSetInterface;
+	drawParams.vertexArray.push_back(drawObject.drawArray.getGpuMemoryImpl());
+	drawParams.descriptorSetInterfaces.push_back(drawObject.descriptorSetInterface);
 	drawParams.graphicsPipelineName	  = "testPipeline";
 
 
-	auto persMat = makeProjectionMatrix(0.1, 100.0, 1.0, 1.0, 1.0, 1.0);
+	auto persMat = makeProjectionMatrixVk(0.1, 100.0, 1.0, 1.0, 1.0, 1.0);
 
 	uint32_t counter = 0;
 	while (renderer.DrawCondition()) {
 		renderer.DrawStart();
 
-		renderer.GetCpuMemoryPointer(uboBuffer, &uboCpuPtr);
-		uboFloatCpuPtr	= static_cast<float*>(uboCpuPtr);
+		void* uboCpuPtr = nullptr;
+		renderer.GetCpuMemoryPointer(drawObject.uboBuffer, &uboCpuPtr);
+		float* uboFloatCpuPtr	= static_cast<float*>(uboCpuPtr);
 		*uboFloatCpuPtr = std::sin(counter / 50.0f) * 0.6f;
-		renderer.UnmapCpuMemoryPointer(uboBuffer);
+		renderer.UnmapCpuMemoryPointer(drawObject.uboBuffer);
 
 		Renderer::UpdatePushConstantParams updatePushConstantParams;
 		updatePushConstantParams.graphicsPipelineName = "testPipeline";

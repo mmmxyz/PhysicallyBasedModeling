@@ -59,7 +59,7 @@ class Renderer {
 			uint32_t count;
 			ValueArray<void*> pResources; // GpuMemoryImpl* or GpuTextureMemoryImpl*
 		};
-		ValueArray<DescriptorInfo*> descriptorInfos;
+		ValueArray<DescriptorInfo> descriptorInfos;
 	};
 
 	GpuBuffer CreateGpuBuffer(uint32_t size, BufferCreateUsage usage);
@@ -252,7 +252,7 @@ class Renderer {
 	class DrawParams {
 	    public:
 		std::vector<GpuMemoryImpl*> vertexArray;
-		DescriptorSetInterface descriptorSetInterface;
+		std::vector<DescriptorSetInterface> descriptorSetInterfaces;
 		std::string graphicsPipelineName;
 	};
 
@@ -265,7 +265,7 @@ class Renderer {
 		int32_t size = 0;
 	};
 
-	bool UpdatePushConstant(UpdatePushConstantParams & pushConstantParams);
+	void UpdatePushConstant(UpdatePushConstantParams & pushConstantParams);
 
 	uint32_t counter	  = 0;
 	uint32_t frameBufferIndex = 999;

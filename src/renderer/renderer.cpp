@@ -303,6 +303,8 @@ void Renderer::CreateRenderPass(Renderer::RenderPassParams& renderPassParams)
 	for (int i = 0; i < renderPassParams.subpasses.size(); i++) {
 		auto& subpassParam		 = renderPassParams.subpasses[i];
 		auto& subpassDesc		 = subpasses[i];
+
+		subpassDesc = VkSubpassDescription{};
 		subpassDesc.colorAttachmentCount = subpassParam.colorAttachments.size();
 		subpassDesc.pColorAttachments	 = static_cast<VkAttachmentReference*>(attatchmentRefs[i]);
 
@@ -376,7 +378,7 @@ void Renderer::WriteDescriptorSet(Renderer::DescriptorWriterParams& descriptorWr
 	uint32_t imageInfoCounter = 0;
 
 	for (int i = 0; i < descriptorWriteParams.descriptorInfos.size(); i++) {
-		Renderer::DescriptorWriterParams::DescriptorInfo& descriptorInfo = *descriptorWriteParams.descriptorInfos[i];
+		Renderer::DescriptorWriterParams::DescriptorInfo& descriptorInfo = descriptorWriteParams.descriptorInfos[i];
 		if (descriptorInfo.type == Renderer::DescriptorWriterParams::DescriptorInfo::UniformBuffer) {
 			for (int j = 0; j < descriptorInfo.count; j++) {
 				GpuMemoryImpl* pGpuMemoryImpl	  = reinterpret_cast<GpuMemoryImpl*>(descriptorInfo.pResources[j]);
@@ -486,7 +488,7 @@ void Renderer::Initialize(InitializeParams& initializeParams)
 	VkApplicationInfo appInfo {};
 	appInfo.sType		   = VK_STRUCTURE_TYPE_APPLICATION_INFO;
 	appInfo.pNext		   = nullptr;			       //リンクの次の構造体はなし
-	appInfo.pApplicationName   = "Vulkan アプリケーション テスト"; //アプリケーションの名前を格納したヌル終端文字列へのポインタ，ちなみにASCII文字における0の値は，nullでなくてnulらしい
+	appInfo.pApplicationName   = "Vulkan Application Test"; //アプリケーションの名前を格納したヌル終端文字列へのポインタ，ちなみにASCII文字における0の値は，nullでなくてnulらしい
 	appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);	       //アプリケーションのバージョン，
 	appInfo.pEngineName	   = nullptr;			       //使用するエンジンの名前
 	appInfo.engineVersion	   = VK_MAKE_VERSION(1, 0, 0);
@@ -1144,7 +1146,7 @@ void Renderer::DrawStart()
 	}
 }
 
-bool Renderer::UpdatePushConstant(UpdatePushConstantParams& pushConstantParams)
+void Renderer::UpdatePushConstant(UpdatePushConstantParams& pushConstantParams)
 {
 	uint32_t gpuIndex = (counter) % 2;
 
@@ -1183,7 +1185,9 @@ void Renderer::Draw(DrawParams& drawParams)
 	// graphicPipeline を bind
 	vkCmdBindPipeline(m_pImpl->CB[gpuIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, pGraphicsPipelineImpl->graphicsPipeline);
 
-	vkCmdBindDescriptorSets(m_pImpl->CB[gpuIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, pGraphicsPipelineImpl->pipelineLayout, drawParams.descriptorSetInterface.pDescriptorSetImpl->set, 1, &drawParams.descriptorSetInterface.pDescriptorSetImpl->descriptorSet, 0, nullptr);
+	for (auto& descriptorSetInterface : drawParams.descriptorSetInterfaces) {
+		vkCmdBindDescriptorSets(m_pImpl->CB[gpuIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, pGraphicsPipelineImpl->pipelineLayout, descriptorSetInterface.pDescriptorSetImpl->set, 1, &descriptorSetInterface.pDescriptorSetImpl->descriptorSet, 0, nullptr);
+	}
 
 	VkDeviceSize vertexBufferOffsets = 0;
 	vkCmdBindVertexBuffers(m_pImpl->CB[gpuIndex], 0, 1, &drawParams.vertexArray[0]->buffer, &vertexBufferOffsets);
