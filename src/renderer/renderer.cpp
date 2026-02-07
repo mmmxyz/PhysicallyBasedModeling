@@ -16,7 +16,7 @@ void Renderer::CreateGraphicsPipeline(Renderer::GraphicsPipelineParams& graphics
 
 	VkResult result;
 
-	auto pGraphicsPipelineImpl				  = new RendererImpl::GraphicsPipelineImpl();
+	auto pGraphicsPipelineImpl = new RendererImpl::GraphicsPipelineImpl();
 	m_pImpl->graphicsPipelineMap[graphicsPipelineParams.name] = pGraphicsPipelineImpl;
 
 	auto createShaderModule = [&](const char* filePath) -> VkShaderModule {
@@ -25,7 +25,7 @@ void Renderer::CreateGraphicsPipeline(Renderer::GraphicsPipelineParams& graphics
 		}
 
 		uint32_t shaderCodeSize = 0;
-		char* shaderCode	= nullptr;
+		char* shaderCode = nullptr;
 		std::ifstream ifs(filePath, std::ios::binary);
 		if (!ifs) {
 			logger << "failed to find shader binary file : " << filePath << std::endl;
@@ -33,17 +33,17 @@ void Renderer::CreateGraphicsPipeline(Renderer::GraphicsPipelineParams& graphics
 		}
 		ifs.seekg(0, std::ios::end);
 		shaderCodeSize = ifs.tellg();
-		shaderCode     = new char[shaderCodeSize];
+		shaderCode = new char[shaderCodeSize];
 		ifs.seekg(0);
 
 		ifs.read(shaderCode, shaderCodeSize);
 
 		VkShaderModuleCreateInfo SMCI;
-		SMCI.sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-		SMCI.pNext    = nullptr;
-		SMCI.flags    = 0; // 予約
+		SMCI.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+		SMCI.pNext = nullptr;
+		SMCI.flags = 0; // 予約
 		SMCI.codeSize = shaderCodeSize;
-		SMCI.pCode    = reinterpret_cast<uint32_t*>(shaderCode);
+		SMCI.pCode = reinterpret_cast<uint32_t*>(shaderCode);
 
 		VkShaderModule shaderModule;
 		VkResult result = vkCreateShaderModule(m_pImpl->logicalDevice, &SMCI, nullptr, &shaderModule);
@@ -51,22 +51,22 @@ void Renderer::CreateGraphicsPipeline(Renderer::GraphicsPipelineParams& graphics
 		m_pImpl->shaderModuleMap[filePath] = shaderModule;
 
 		return shaderModule;
-	};
+		};
 
 	VkPipelineShaderStageCreateInfo shaderStages[16] = {};
 	for (int i = 0; i < graphicsPipelineParams.shaders.size(); i++) {
 		ShaderStageParams& shaderStageParam = *graphicsPipelineParams.shaders[i];
 		logger << "Shader Stage " << shaderStageParam.stageType << ":"
-		       << " Path: " << shaderStageParam.shaderPath << std::endl;
+			<< " Path: " << shaderStageParam.shaderPath << std::endl;
 
 		VkShaderModule shaderModule = createShaderModule(shaderStageParam.shaderPath.data());
 
-		shaderStages[i].sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-		shaderStages[i].pNext  = nullptr;
-		shaderStages[i].flags  = 0; // 予約
-		shaderStages[i].stage  = (shaderStageParam.stageType == ShaderStageParams::Vertex) ? VK_SHADER_STAGE_VERTEX_BIT : VK_SHADER_STAGE_FRAGMENT_BIT;
+		shaderStages[i].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+		shaderStages[i].pNext = nullptr;
+		shaderStages[i].flags = 0; // 予約
+		shaderStages[i].stage = (shaderStageParam.stageType == ShaderStageVertex) ? VK_SHADER_STAGE_VERTEX_BIT : VK_SHADER_STAGE_FRAGMENT_BIT;
 		shaderStages[i].module = shaderModule;
-		shaderStages[i].pName  = "main";     // エントリポイントの指定（関数名）
+		shaderStages[i].pName = "main";     // エントリポイントの指定（関数名）
 		shaderStages[i].pSpecializationInfo; // 特殊化定数に使う constant_id で与えられる変数に値を与える
 	}
 
@@ -78,13 +78,13 @@ void Renderer::CreateGraphicsPipeline(Renderer::GraphicsPipelineParams& graphics
 	VkDynamicState dynamicStates[2] = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
 
 	VkPipelineDynamicStateCreateInfo dynamicState = {};
-	dynamicState.sType			      = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-	dynamicState.dynamicStateCount		      = 2;
-	dynamicState.pDynamicStates		      = dynamicStates;
+	dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+	dynamicState.dynamicStateCount = 2;
+	dynamicState.pDynamicStates = dynamicStates;
 
-	auto createDescriptorSetLayoutBinding = [&](DescriptorSetBindingParams& descriptorSetLayoutParam, VkDescriptorSetLayoutBinding& layoutBinding) -> void {
-		layoutBinding.binding = descriptorSetLayoutParam.bindingNum;
-		switch (descriptorSetLayoutParam.type) {
+	auto createDescriptorSetLayoutBinding = [&](DescriptorSetLayoutParams& descriptorSetLayoutParam, DescriptorSetBindingParams& descriptorSetBindingParam, VkDescriptorSetLayoutBinding& layoutBinding, VkDescriptorBindingFlags& layoutBindingFlags) -> void {
+		layoutBinding.binding = descriptorSetBindingParam.bindingNum;
+		switch (descriptorSetBindingParam.type) {
 		case DescriptorSetBindingParams::UniformBuffer_bit:
 			layoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 			break;
@@ -95,15 +95,23 @@ void Renderer::CreateGraphicsPipeline(Renderer::GraphicsPipelineParams& graphics
 			layoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 			break;
 		}
-		layoutBinding.descriptorCount = descriptorSetLayoutParam.count;
-		layoutBinding.stageFlags      = 0;
-		if (descriptorSetLayoutParam.shaderStage & DescriptorSetBindingParams::Vertex_bit) {
+		layoutBinding.descriptorCount = descriptorSetBindingParam.count;
+		layoutBinding.stageFlags = 0;
+		if (descriptorSetBindingParam.shaderStage & DescriptorSetBindingParams::Vertex_bit) {
 			layoutBinding.stageFlags |= VK_SHADER_STAGE_VERTEX_BIT;
 		}
-		if (descriptorSetLayoutParam.shaderStage & DescriptorSetBindingParams::Fragment_bit) {
+		if (descriptorSetBindingParam.shaderStage & DescriptorSetBindingParams::Fragment_bit) {
 			layoutBinding.stageFlags |= VK_SHADER_STAGE_FRAGMENT_BIT;
 		}
-	};
+
+		if (descriptorSetLayoutParam.isBindless) {
+			layoutBindingFlags = VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT | VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT;
+		}
+		else
+		{
+			layoutBindingFlags = 0;
+		}
+		};
 
 	const int descriptorSetCounter = graphicsPipelineParams.descriptorSetParams.size();
 
@@ -112,100 +120,125 @@ void Renderer::CreateGraphicsPipeline(Renderer::GraphicsPipelineParams& graphics
 	pGraphicsPipelineImpl->pDescriptorSetLayout.resize(descriptorSetCounter);
 	for (int i = 0; i < descriptorSetCounter; i++) {
 		VkDescriptorSetLayoutBinding layoutBindings[256] = {};
+		VkDescriptorBindingFlags layoutBindingFlags[256] = {};
 
 		auto descriptorSetLayoutParam = graphicsPipelineParams.descriptorSetParams[i];
 		for (int j = 0; j < descriptorSetLayoutParam->descriptorSetBindingParams.size(); j++) {
-			createDescriptorSetLayoutBinding(*descriptorSetLayoutParam->descriptorSetBindingParams[j], layoutBindings[j]);
+			createDescriptorSetLayoutBinding(*descriptorSetLayoutParam, *descriptorSetLayoutParam->descriptorSetBindingParams[j], layoutBindings[j], layoutBindingFlags[j]);
 		}
 
-		VkDescriptorSetLayoutCreateInfo DSLCI = {};
-		DSLCI.sType			      = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-		DSLCI.bindingCount		      = descriptorSetLayoutParam->descriptorSetBindingParams.size();
-		DSLCI.pBindings			      = layoutBindings;
+		// デフォで有効にする
+		VkDescriptorSetLayoutBindingFlagsCreateInfo DSLEBFCI = {};
+		DSLEBFCI.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
+		DSLEBFCI.pNext = nullptr;
+		DSLEBFCI.bindingCount = descriptorSetLayoutParam->descriptorSetBindingParams.size();
+		DSLEBFCI.pBindingFlags = layoutBindingFlags;
 
-		result = vkCreateDescriptorSetLayout(m_pImpl->logicalDevice, &DSLCI, nullptr, &pGraphicsPipelineImpl->pDescriptorSetLayout[i]);
+		VkDescriptorSetLayoutCreateInfo DSLCI = {};
+		DSLCI.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+		DSLCI.pNext = &DSLEBFCI;
+		DSLCI.bindingCount = descriptorSetLayoutParam->descriptorSetBindingParams.size();
+		DSLCI.pBindings = layoutBindings;
+
+		if (descriptorSetLayoutParam->isBindless)
+		{
+			DSLCI.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
+			pGraphicsPipelineImpl->pDescriptorSetLayout[i].isBindless = true;
+		}
+		else
+		{
+			DSLCI.flags = 0;
+			pGraphicsPipelineImpl->pDescriptorSetLayout[i].isBindless = false;
+		}
+
+		result = vkCreateDescriptorSetLayout(m_pImpl->logicalDevice, &DSLCI, nullptr, &pGraphicsPipelineImpl->pDescriptorSetLayout[i].descriptorSetLayout);
 		if (result != VK_SUCCESS) {
 			exit(1);
 		}
 	}
 
 	VkPipelineInputAssemblyStateCreateInfo PIASCI = {};
-	PIASCI.sType				      = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-	PIASCI.topology				      = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-	PIASCI.primitiveRestartEnable		      = VK_FALSE; // _STRIP 系の topology のとき，インデックスが 0xFFFF のとき打ち切るかどうか
+	PIASCI.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+	PIASCI.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+	PIASCI.primitiveRestartEnable = VK_FALSE; // _STRIP 系の topology のとき，インデックスが 0xFFFF のとき打ち切るかどうか
 
 	VkPipelineViewportStateCreateInfo viewportState = {};
-	viewportState.sType				= VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-	viewportState.viewportCount			= 1;
-	viewportState.scissorCount			= 1;
+	viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+	viewportState.viewportCount = 1;
+	viewportState.scissorCount = 1;
 	// dynamic state で viewport と scissor を指定したので↑の構造体には両者を格納しない
 
 	//// rasterizer
 
 	VkPipelineRasterizationStateCreateInfo PRSC = {};
-	PRSC.sType				    = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-	PRSC.depthClampEnable			    = VK_FALSE;		    // near, far を越えると discard するのではなく clamp される， shadow map 作るときに便利
-	PRSC.rasterizerDiscardEnable		    = VK_FALSE;		    //
-	PRSC.polygonMode			    = VK_POLYGON_MODE_FILL; // line だけ， point だけ描画したいなど
-	PRSC.lineWidth				    = 1.0f;		    //
-	PRSC.cullMode				    = VK_CULL_MODE_NONE;
-	PRSC.frontFace				    = VK_FRONT_FACE_CLOCKWISE;
+	PRSC.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+	PRSC.depthClampEnable = VK_FALSE;		    // near, far を越えると discard するのではなく clamp される， shadow map 作るときに便利
+	PRSC.rasterizerDiscardEnable = VK_FALSE;		    //
+	PRSC.polygonMode = VK_POLYGON_MODE_FILL; // line だけ， point だけ描画したいなど
+	PRSC.lineWidth = 1.0f;		    //
+	PRSC.cullMode = VK_CULL_MODE_BACK_BIT;
+	PRSC.frontFace = VK_FRONT_FACE_CLOCKWISE;
 	// fragment slope に応じて depth 値を修正できる
-	PRSC.depthBiasEnable	     = VK_FALSE; // 無効（Zファイティング抑制に使われる）
+	PRSC.depthBiasEnable = VK_FALSE; // 無効（Zファイティング抑制に使われる）
 	PRSC.depthBiasConstantFactor = 0.0f;
-	PRSC.depthBiasClamp	     = 0.0f;
-	PRSC.depthBiasSlopeFactor    = 0.0f;
+	PRSC.depthBiasClamp = 0.0f;
+	PRSC.depthBiasSlopeFactor = 0.0f;
 
 	// multiSample: 三角形の edge 周辺で複数ポリゴンからピクセルに割り当てられるときの処理
 	VkPipelineMultisampleStateCreateInfo PMSC = {};
-	PMSC.sType				  = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-	PMSC.sampleShadingEnable		  = VK_FALSE;
-	PMSC.rasterizationSamples		  = VK_SAMPLE_COUNT_1_BIT;
-	PMSC.minSampleShading			  = 1.0;
-	PMSC.pSampleMask			  = nullptr;
-	PMSC.alphaToCoverageEnable		  = VK_FALSE;
-	PMSC.alphaToOneEnable			  = VK_FALSE;
+	PMSC.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+	PMSC.sampleShadingEnable = VK_FALSE;
+	PMSC.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+	PMSC.minSampleShading = 1.0;
+	PMSC.pSampleMask = nullptr;
+	PMSC.alphaToCoverageEnable = VK_FALSE;
+	PMSC.alphaToOneEnable = VK_FALSE;
 
 	VkPipelineDepthStencilStateCreateInfo PDSSC = {};
-	PDSSC.depthBoundsTestEnable		    = VK_TRUE;
-	PDSSC.depthCompareOp			    = VK_COMPARE_OP_GREATER_OR_EQUAL;
-	PDSSC.depthWriteEnable			    = VK_TRUE;
-	PDSSC.depthBoundsTestEnable		    = VK_FALSE; // 境界テストはOFF
-	PDSSC.stencilTestEnable			    = VK_FALSE;
+	PDSSC.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+	PDSSC.depthBoundsTestEnable = VK_TRUE;
+	PDSSC.depthCompareOp = VK_COMPARE_OP_LESS;
+	PDSSC.depthWriteEnable = VK_TRUE;
+	PDSSC.depthBoundsTestEnable = VK_FALSE; // 境界テストはOFF
+	PDSSC.stencilTestEnable = VK_FALSE;
 
 	VkPipelineColorBlendAttachmentState PCBAS = {};
-	PCBAS.colorWriteMask			  = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-	PCBAS.blendEnable			  = VK_TRUE;
-	PCBAS.dstColorBlendFactor		  = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-	PCBAS.srcColorBlendFactor		  = VK_BLEND_FACTOR_SRC_ALPHA;
-	PCBAS.colorBlendOp			  = VK_BLEND_OP_ADD;
-	PCBAS.dstAlphaBlendFactor		  = VK_BLEND_FACTOR_ZERO;
-	PCBAS.srcAlphaBlendFactor		  = VK_BLEND_FACTOR_ONE;
-	PCBAS.alphaBlendOp			  = VK_BLEND_OP_ADD;
+	PCBAS.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+	PCBAS.blendEnable = VK_TRUE;
+	PCBAS.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+	PCBAS.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+	PCBAS.colorBlendOp = VK_BLEND_OP_ADD;
+	PCBAS.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+	PCBAS.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+	PCBAS.alphaBlendOp = VK_BLEND_OP_ADD;
 
 	VkPipelineColorBlendStateCreateInfo PCBSC = {};
-	PCBSC.sType				  = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-	PCBSC.pNext				  = nullptr;
-	PCBSC.logicOpEnable			  = VK_FALSE;
-	PCBSC.attachmentCount			  = 1;
-	PCBSC.pAttachments			  = &PCBAS;
+	PCBSC.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+	PCBSC.pNext = nullptr;
+	PCBSC.logicOpEnable = VK_FALSE;
+	PCBSC.attachmentCount = 1;
+	PCBSC.pAttachments = &PCBAS;
 
 	VkPushConstantRange pushConstantRange;
 	pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
-	pushConstantRange.offset     = 0;
-	pushConstantRange.size	     = graphicsPipelineParams.pushConstantSize;
+	pushConstantRange.offset = 0;
+	pushConstantRange.size = graphicsPipelineParams.pushConstantSize;
 
 	// パイプラインレイアウト作成
 	VkPipelineLayoutCreateInfo PLCI = {};
-	PLCI.sType			= VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	PLCI.flags			= 0;
-	PLCI.pNext			= nullptr;
-	PLCI.setLayoutCount		= 0;
-	PLCI.pSetLayouts		= nullptr;
-	PLCI.pushConstantRangeCount	= 1;
-	PLCI.pPushConstantRanges	= &pushConstantRange;
-	PLCI.setLayoutCount		= descriptorSetCounter;
-	PLCI.pSetLayouts		= pGraphicsPipelineImpl->pDescriptorSetLayout.data();
+	PLCI.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	PLCI.flags = 0;
+	PLCI.pNext = nullptr;
+	PLCI.pushConstantRangeCount = 1;
+	PLCI.pPushConstantRanges = &pushConstantRange;
+	PLCI.setLayoutCount = descriptorSetCounter;
+
+	VkDescriptorSetLayout temp[256];
+	for (int i = 0; i < pGraphicsPipelineImpl->pDescriptorSetLayout.size(); i++)
+	{
+		temp[i] = pGraphicsPipelineImpl->pDescriptorSetLayout[i].descriptorSetLayout;
+	}
+	PLCI.pSetLayouts = temp;
 
 	result = vkCreatePipelineLayout(m_pImpl->logicalDevice, &PLCI, nullptr, &pGraphicsPipelineImpl->pipelineLayout);
 	if (result != VK_SUCCESS) {
@@ -220,26 +253,26 @@ void Renderer::CreateGraphicsPipeline(Renderer::GraphicsPipelineParams& graphics
 	// Graphic Pipeline
 
 	VkGraphicsPipelineCreateInfo GPCI = {};
-	GPCI.sType			  = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-	GPCI.pNext			  = nullptr;
-	GPCI.stageCount			  = 2;
-	GPCI.pStages			  = shaderStages;
-	GPCI.pVertexInputState		  = &m_pImpl->vertexInputStateImplMap[graphicsPipelineParams.vertexLayoutName]->vertexInputInfo;
-	GPCI.pInputAssemblyState	  = &PIASCI;
-	GPCI.pViewportState		  = &viewportState;
-	GPCI.pRasterizationState	  = &PRSC;
-	GPCI.pMultisampleState		  = &PMSC;
-	GPCI.pDepthStencilState		  = &PDSSC;
-	GPCI.pColorBlendState		  = &PCBSC;
-	GPCI.pDynamicState		  = &dynamicState;
+	GPCI.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+	GPCI.pNext = nullptr;
+	GPCI.stageCount = 2;
+	GPCI.pStages = shaderStages;
+	GPCI.pVertexInputState = &m_pImpl->vertexInputStateImplMap[graphicsPipelineParams.vertexLayoutName]->vertexInputInfo;
+	GPCI.pInputAssemblyState = &PIASCI;
+	GPCI.pViewportState = &viewportState;
+	GPCI.pRasterizationState = &PRSC;
+	GPCI.pMultisampleState = &PMSC;
+	GPCI.pDepthStencilState = &PDSSC;
+	GPCI.pColorBlendState = &PCBSC;
+	GPCI.pDynamicState = &dynamicState;
 
 	GPCI.layout = pGraphicsPipelineImpl->pipelineLayout;
 
 	GPCI.renderPass = pRenderPass->renderPass;
-	GPCI.subpass	= 0; // index = 0;
+	GPCI.subpass = 0; // index = 0;
 
 	GPCI.basePipelineHandle = VK_NULL_HANDLE; // 不使用
-	GPCI.basePipelineIndex	= -1;
+	GPCI.basePipelineIndex = -1;
 
 	result = vkCreateGraphicsPipelines(m_pImpl->logicalDevice, VK_NULL_HANDLE, 1, &GPCI, nullptr, &pGraphicsPipelineImpl->graphicsPipeline);
 	if (result != VK_SUCCESS) {
@@ -251,14 +284,14 @@ void Renderer::CreateGraphicsPipeline(Renderer::GraphicsPipelineParams& graphics
 	pGraphicsPipelineImpl->pFrameBuffer = new VkFramebuffer[m_pImpl->swapChainImageCount];
 	for (int i = 0; i < m_pImpl->swapChainImageCount; i++) {
 		VkFramebufferCreateInfo FCI = {};
-		FCI.sType		    = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-		FCI.flags		    = 0;
-		FCI.renderPass		    = pRenderPass->renderPass;
-		FCI.attachmentCount	    = 1;
-		FCI.pAttachments	    = &m_pImpl->swapChainImageViews[i];
-		FCI.width		    = m_pImpl->surfaceCapabilities.currentExtent.width;
-		FCI.height		    = m_pImpl->surfaceCapabilities.currentExtent.height;
-		FCI.layers		    = 1;
+		FCI.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+		FCI.flags = 0;
+		FCI.renderPass = pRenderPass->renderPass;
+		FCI.attachmentCount = 1;
+		FCI.pAttachments = &m_pImpl->swapChainImageViews[i];
+		FCI.width = m_pImpl->surfaceCapabilities.currentExtent.width;
+		FCI.height = m_pImpl->surfaceCapabilities.currentExtent.height;
+		FCI.layers = 1;
 
 		result = vkCreateFramebuffer(m_pImpl->logicalDevice, &FCI, nullptr, &pGraphicsPipelineImpl->pFrameBuffer[i]);
 		if (result != VK_SUCCESS) {
@@ -277,26 +310,26 @@ void Renderer::CreateRenderPass(Renderer::RenderPassParams& renderPassParams)
 	VkAttachmentDescription attachments[128] = {};
 	for (int i = 0; i < renderPassParams.attachments.size(); i++) {
 		auto& attachmentParams = renderPassParams.attachments[i];
-		auto& attachment       = attachments[i];
+		auto& attachment = attachments[i];
 
 		switch (attachmentParams.format) {
-		case AttachmentParams::Format::SameAsSwapChain:
+		case ImageFormat::SameAsSwapChain:
 			attachment.format = m_pImpl->swapChainImageFormat;
 			break;
-		case AttachmentParams::Format::RGBA8_SNORM:
+		case ImageFormat::RGBA8_SNORM:
 			attachment.format = VkFormat::VK_FORMAT_R8G8B8A8_SNORM;
 			break;
-		case AttachmentParams::Format::DEPTH16_UNORM:
+		case ImageFormat::DEPTH16_UNORM:
 			attachment.format = VkFormat::VK_FORMAT_D16_UNORM;
 			break;
 		}
-		attachment.samples	  = VK_SAMPLE_COUNT_1_BIT; // multi sample しない
-		attachment.loadOp	  = VK_ATTACHMENT_LOAD_OP_CLEAR;
-		attachment.storeOp	  = VK_ATTACHMENT_STORE_OP_STORE;
-		attachment.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		attachment.samples = VK_SAMPLE_COUNT_1_BIT; // multi sample しない
+		attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+		attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 		attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		attachment.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
-		attachment.finalLayout	  = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+		attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		attachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 	}
 
 	VkAttachmentReference attatchmentRefs[64][64];
@@ -304,15 +337,15 @@ void Renderer::CreateRenderPass(Renderer::RenderPassParams& renderPassParams)
 
 	for (int i = 0; i < renderPassParams.subpasses.size(); i++) {
 		auto& subpassParam = renderPassParams.subpasses[i];
-		auto& subpassDesc  = subpasses[i];
+		auto& subpassDesc = subpasses[i];
 
-		subpassDesc			 = VkSubpassDescription {};
+		subpassDesc = VkSubpassDescription{};
 		subpassDesc.colorAttachmentCount = subpassParam.colorAttachments.size();
-		subpassDesc.pColorAttachments	 = static_cast<VkAttachmentReference*>(attatchmentRefs[i]);
+		subpassDesc.pColorAttachments = static_cast<VkAttachmentReference*>(attatchmentRefs[i]);
 
 		for (int j = 0; j < subpassParam.colorAttachments.size(); j++) {
 			attatchmentRefs[i][j].attachment = subpassParam.colorAttachments[j];
-			attatchmentRefs[i][j].layout	 = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+			attatchmentRefs[i][j].layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 		}
 
 		subpassDesc.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
@@ -320,11 +353,11 @@ void Renderer::CreateRenderPass(Renderer::RenderPassParams& renderPassParams)
 
 	// render pass
 	VkRenderPassCreateInfo RPCI = {};
-	RPCI.sType		    = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-	RPCI.attachmentCount	    = renderPassParams.attachments.size();
-	RPCI.pAttachments	    = attachments;
-	RPCI.subpassCount	    = renderPassParams.subpasses.size();
-	RPCI.pSubpasses		    = subpasses;
+	RPCI.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+	RPCI.attachmentCount = renderPassParams.attachments.size();
+	RPCI.pAttachments = attachments;
+	RPCI.subpassCount = renderPassParams.subpasses.size();
+	RPCI.pSubpasses = subpasses;
 
 	VkResult result = vkCreateRenderPass(m_pImpl->logicalDevice, &RPCI, nullptr, &pRenderPassImpl->renderPass);
 	if (result != VK_SUCCESS) {
@@ -342,11 +375,11 @@ Renderer::GpuBuffer Renderer::CreateGpuBuffer(uint32_t size, Renderer::BufferCre
 	return { size, pGpuMemoryImpl };
 }
 
-Renderer::GpuTexture Renderer::CreateGpuTexture(uint32_t width, uint32_t height)
+Renderer::GpuTexture Renderer::CreateGpuTexture(uint32_t width, uint32_t height, ImageFormat format)
 {
 	GpuTextureMemoryImpl* pGpuTextureMemoryImpl = new GpuTextureMemoryImpl();
-	m_pImpl->CreateImage(width, height, *pGpuTextureMemoryImpl);
-	m_pImpl->CreateImageView(*pGpuTextureMemoryImpl);
+	m_pImpl->CreateImage(width, height, *pGpuTextureMemoryImpl, format);
+	m_pImpl->CreateImageView(*pGpuTextureMemoryImpl, format);
 	m_pImpl->CreateSampler(*pGpuTextureMemoryImpl);
 	return { width, height, pGpuTextureMemoryImpl->size, pGpuTextureMemoryImpl };
 }
@@ -356,19 +389,49 @@ Renderer::DescriptorSetInterface Renderer::CreateDescriptorSetInterface(std::str
 	auto* pGraphicsPipelineImpl = m_pImpl->graphicsPipelineMap[graphicsPipelineName];
 
 	DescriptorSetImpl* pDescriptorSetImpl = new DescriptorSetImpl();
-	pDescriptorSetImpl->set		      = set;
+	pDescriptorSetImpl->set = set;
 
 	VkDescriptorSetAllocateInfo DSAI = {};
-	DSAI.sType			 = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-	DSAI.descriptorPool		 = m_pImpl->descriptorPool;
-	DSAI.descriptorSetCount		 = 1;
-	DSAI.pSetLayouts		 = &pGraphicsPipelineImpl->pDescriptorSetLayout[set];
+	DSAI.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	DSAI.descriptorPool = m_pImpl->descriptorPool;
+	DSAI.descriptorSetCount = 1;
+	DSAI.pSetLayouts = &pGraphicsPipelineImpl->pDescriptorSetLayout[set].descriptorSetLayout;
 
 	VkResult result = vkAllocateDescriptorSets(m_pImpl->logicalDevice, &DSAI, &pDescriptorSetImpl->descriptorSet);
 	if (result != VK_SUCCESS) {
 		exit(1);
 	}
-	return { set, pDescriptorSetImpl };
+	return { pDescriptorSetImpl };
+}
+
+Renderer::DescriptorSetInterface Renderer::CreateDescriptorSetInterface(std::string graphicsPipelineName, int set, bool isBindless, int bindlessCounter)
+{
+	auto* pGraphicsPipelineImpl = m_pImpl->graphicsPipelineMap[graphicsPipelineName];
+
+	DescriptorSetImpl* pDescriptorSetImpl = new DescriptorSetImpl();
+	pDescriptorSetImpl->set = set;
+
+	VkDescriptorSetAllocateInfo DSAI = {};
+	DSAI.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	DSAI.descriptorPool = m_pImpl->descriptorPoolForBindless;
+	DSAI.descriptorSetCount = 1;
+	DSAI.pSetLayouts = &pGraphicsPipelineImpl->pDescriptorSetLayout[set].descriptorSetLayout;
+
+	VkDescriptorSetVariableDescriptorCountAllocateInfo VDVDCI = {};
+	if (isBindless)
+	{
+		VDVDCI.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO;
+		VDVDCI.descriptorSetCount = 1;
+		uint32_t maxDescriptorCount = bindlessCounter;
+		VDVDCI.pDescriptorCounts = &maxDescriptorCount;
+		DSAI.pNext = &VDVDCI;
+	}
+
+	VkResult result = vkAllocateDescriptorSets(m_pImpl->logicalDevice, &DSAI, &pDescriptorSetImpl->descriptorSet);
+	if (result != VK_SUCCESS) {
+		exit(1);
+	}
+	return { pDescriptorSetImpl };
 }
 
 void Renderer::WriteDescriptorSet(Renderer::DescriptorWriterParams& descriptorWriteParams, Renderer::DescriptorSetInterface& descriptorSetInterface)
@@ -383,44 +446,45 @@ void Renderer::WriteDescriptorSet(Renderer::DescriptorWriterParams& descriptorWr
 		Renderer::DescriptorWriterParams::DescriptorInfo& descriptorInfo = descriptorWriteParams.descriptorInfos[i];
 		if (descriptorInfo.type == Renderer::DescriptorWriterParams::DescriptorInfo::UniformBuffer) {
 			for (int j = 0; j < descriptorInfo.count; j++) {
-				GpuMemoryImpl* pGpuMemoryImpl	  = reinterpret_cast<GpuMemoryImpl*>(descriptorInfo.pResources[j]);
+				GpuMemoryImpl* pGpuMemoryImpl = reinterpret_cast<GpuMemoryImpl*>(descriptorInfo.pResources[j]);
 				VkDescriptorBufferInfo bufferInfo = {};
-				bufferInfo.buffer		  = pGpuMemoryImpl->buffer;
-				bufferInfo.offset		  = 0;
-				bufferInfo.range		  = VK_WHOLE_SIZE;
-				bufferInfos[bufferInfoCounter++]  = bufferInfo;
+				bufferInfo.buffer = pGpuMemoryImpl->buffer;
+				bufferInfo.offset = 0;
+				bufferInfo.range = VK_WHOLE_SIZE;
+				bufferInfos[bufferInfoCounter++] = bufferInfo;
 			}
 			VkWriteDescriptorSet writeDescriptorSet = {};
-			writeDescriptorSet.sType		= VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-			writeDescriptorSet.dstSet		= descriptorSetInterface.pDescriptorSetImpl->descriptorSet;
-			writeDescriptorSet.dstBinding		= descriptorInfo.bindingNum;
-			writeDescriptorSet.dstArrayElement	= 0;
-			writeDescriptorSet.descriptorCount	= descriptorInfo.count;
-			writeDescriptorSet.descriptorType	= VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-			writeDescriptorSet.pBufferInfo		= bufferInfos + bufferInfoCounter - descriptorInfo.count;
+			writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			writeDescriptorSet.dstSet = descriptorSetInterface.pDescriptorSetImpl->descriptorSet;
+			writeDescriptorSet.dstBinding = descriptorInfo.bindingNum;
+			writeDescriptorSet.dstArrayElement = 0;
+			writeDescriptorSet.descriptorCount = descriptorInfo.count;
+			writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+			writeDescriptorSet.pBufferInfo = bufferInfos + bufferInfoCounter - descriptorInfo.count;
 			;
 			writeDescriptorSets[i] = writeDescriptorSet;
-		} else if (descriptorInfo.type == Renderer::DescriptorWriterParams::DescriptorInfo::Combined_Image_Sampler) {
+		}
+		else if (descriptorInfo.type == Renderer::DescriptorWriterParams::DescriptorInfo::Combined_Image_Sampler) {
 			for (int j = 0; j < descriptorInfo.count; j++) {
 				GpuTextureMemoryImpl* pGpuTextureMemoryImpl = reinterpret_cast<GpuTextureMemoryImpl*>(descriptorInfo.pResources[j]);
-				VkDescriptorImageInfo imageInfo		    = {};
-				imageInfo.imageLayout			    = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-				imageInfo.imageView			    = pGpuTextureMemoryImpl->imageView;
-				imageInfo.sampler			    = pGpuTextureMemoryImpl->sampler;
-				imageInfos[imageInfoCounter++]		    = imageInfo;
+				VkDescriptorImageInfo imageInfo = {};
+				imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+				imageInfo.imageView = pGpuTextureMemoryImpl->imageView;
+				imageInfo.sampler = pGpuTextureMemoryImpl->sampler;
+				imageInfos[imageInfoCounter++] = imageInfo;
 			}
 			VkWriteDescriptorSet writeDescriptorSet = {};
-			writeDescriptorSet.sType		= VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-			writeDescriptorSet.dstSet		= descriptorSetInterface.pDescriptorSetImpl->descriptorSet;
-			writeDescriptorSet.dstBinding		= descriptorInfo.bindingNum;
-			writeDescriptorSet.dstArrayElement	= 0;
-			writeDescriptorSet.descriptorCount	= descriptorInfo.count;
-			writeDescriptorSet.descriptorType	= VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-			writeDescriptorSet.pImageInfo		= imageInfos + imageInfoCounter - descriptorInfo.count;
-			writeDescriptorSets[i]			= writeDescriptorSet;
+			writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			writeDescriptorSet.dstSet = descriptorSetInterface.pDescriptorSetImpl->descriptorSet;
+			writeDescriptorSet.dstBinding = descriptorInfo.bindingNum;
+			writeDescriptorSet.dstArrayElement = 0;
+			writeDescriptorSet.descriptorCount = descriptorInfo.count;
+			writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+			writeDescriptorSet.pImageInfo = imageInfos + imageInfoCounter - descriptorInfo.count;
+			writeDescriptorSets[i] = writeDescriptorSet;
 		}
 	}
-	vkUpdateDescriptorSets(m_pImpl->logicalDevice, 2, writeDescriptorSets, 0, nullptr);
+	vkUpdateDescriptorSets(m_pImpl->logicalDevice, descriptorWriteParams.descriptorInfos.size(), writeDescriptorSets, 0, nullptr);
 }
 
 void Renderer::GetCpuMemoryPointer(Renderer::GpuBuffer& gpuMemory, void** ppData)
@@ -487,23 +551,23 @@ void Renderer::Initialize(InitializeParams& initializeParams)
 	///instanceの作成///
 	////////////////////
 
-	VkApplicationInfo appInfo {};
-	appInfo.sType		   = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-	appInfo.pNext		   = nullptr;			//リンクの次の構造体はなし
-	appInfo.pApplicationName   = "Vulkan Application Test"; //アプリケーションの名前を格納したヌル終端文字列へのポインタ，ちなみにASCII文字における0の値は，nullでなくてnulらしい
+	VkApplicationInfo appInfo{};
+	appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+	appInfo.pNext = nullptr;			//リンクの次の構造体はなし
+	appInfo.pApplicationName = "Vulkan Application Test"; //アプリケーションの名前を格納したヌル終端文字列へのポインタ，ちなみにASCII文字における0の値は，nullでなくてnulらしい
 	appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);	//アプリケーションのバージョン，
-	appInfo.pEngineName	   = nullptr;			//使用するエンジンの名前
-	appInfo.engineVersion	   = VK_MAKE_VERSION(1, 0, 0);
-	appInfo.apiVersion	   = VK_API_VERSION_1_2; //アプリケーションが期待するvulkan apiのバージョン，実行に必要な最小のバージョンを設定する
+	appInfo.pEngineName = nullptr;			//使用するエンジンの名前
+	appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
+	appInfo.apiVersion = VK_API_VERSION_1_2; //アプリケーションが期待するvulkan apiのバージョン，実行に必要な最小のバージョンを設定する
 
-	VkInstanceCreateInfo createInfo {};
-	createInfo.sType		   = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-	createInfo.pNext		   = nullptr; //リンクの次の構造体はなし
-	createInfo.flags		   = 0;	      //
-	createInfo.pApplicationInfo	   = &appInfo;
-	createInfo.enabledLayerCount	   = 0;			     //有効にするインスタンスレイヤの数
-	createInfo.ppEnabledLayerNames	   = nullptr;		     //有効にするインスタンスレイヤの名前のベクタ(ヌル終端された文字列のポインタの配列)
-	createInfo.enabledExtensionCount   = instanceExtensionCount; //拡張機能の数
+	VkInstanceCreateInfo createInfo{};
+	createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+	createInfo.pNext = nullptr; //リンクの次の構造体はなし
+	createInfo.flags = 0;	      //
+	createInfo.pApplicationInfo = &appInfo;
+	createInfo.enabledLayerCount = 0;			     //有効にするインスタンスレイヤの数
+	createInfo.ppEnabledLayerNames = nullptr;		     //有効にするインスタンスレイヤの名前のベクタ(ヌル終端された文字列のポインタの配列)
+	createInfo.enabledExtensionCount = instanceExtensionCount; //拡張機能の数
 	createInfo.ppEnabledExtensionNames = instanceExtensionNames; //拡張機能の名前のベクタ
 
 	//////////////////////////////////
@@ -521,7 +585,7 @@ void Renderer::Initialize(InitializeParams& initializeParams)
 	}
 	logger << "Instance Layer size: " << numILayer << std::endl;
 	VkLayerProperties* pILPs = new VkLayerProperties[numILayer];
-	result			 = vkEnumerateInstanceLayerProperties(&numILayer, pILPs);
+	result = vkEnumerateInstanceLayerProperties(&numILayer, pILPs);
 	if (result != VK_SUCCESS) {
 		logger << "failed to get properties of ILayer!!!" << std::endl;
 		exit(1);
@@ -554,7 +618,7 @@ void Renderer::Initialize(InitializeParams& initializeParams)
 	//どちらでもよいのだが，createInfoのフィールドにはこのまま使えるということ．
 
 	if (isDebugMode) {
-		createInfo.enabledLayerCount   = 1;
+		createInfo.enabledLayerCount = 1;
 		createInfo.ppEnabledLayerNames = ppILT;
 	}
 
@@ -572,7 +636,7 @@ void Renderer::Initialize(InitializeParams& initializeParams)
 	}
 	logger << "Instance Extension size: " << numIExtension << std::endl;
 	VkExtensionProperties* pIEPs = new VkExtensionProperties[numIExtension];
-	result			     = vkEnumerateInstanceExtensionProperties(nullptr, &numIExtension, pIEPs);
+	result = vkEnumerateInstanceExtensionProperties(nullptr, &numIExtension, pIEPs);
 	if (result != VK_SUCCESS) {
 		logger << "failt to get properties of IExtension!!!" << std::endl;
 		exit(1);
@@ -614,7 +678,7 @@ void Renderer::Initialize(InitializeParams& initializeParams)
 	}
 
 	VkPhysicalDevice* pPDs = new VkPhysicalDevice[numPD];
-	result		       = vkEnumeratePhysicalDevices(instance, &numPD, pPDs);
+	result = vkEnumeratePhysicalDevices(instance, &numPD, pPDs);
 	if (result != VK_SUCCESS) {
 		logger << "failed to check physical devices!!!" << std::endl;
 		exit(1);
@@ -642,7 +706,7 @@ void Renderer::Initialize(InitializeParams& initializeParams)
 	// 選択されたキューファミリがサポートするキューの数
 	int32_t queue_family_queue_count = -1;
 	// 選択されたメモリタイプ
-	int32_t memory_type_index	     = -1;
+	int32_t memory_type_index = -1;
 	int32_t memory_type_index_host_local = -1;
 
 	//各物理デバイスに対して
@@ -711,14 +775,14 @@ void Renderer::Initialize(InitializeParams& initializeParams)
 			if (physical_device_index == int32_t(i) && memory_type_index == -1) {
 				constexpr uint32_t requiredFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
 				if (pPDMPs[i].memoryTypes[j].propertyFlags & requiredFlags) {
-					memory_type_index	   = j;
+					memory_type_index = j;
 					m_pImpl->memory_type_index = j;
 				}
 			}
 			if (physical_device_index == int32_t(i) && memory_type_index_host_local == -1) {
 				constexpr uint32_t requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 				if (pPDMPs[i].memoryTypes[j].propertyFlags & requiredFlags) {
-					memory_type_index_host_local	      = j;
+					memory_type_index_host_local = j;
 					m_pImpl->memory_type_index_host_local = j;
 				}
 			}
@@ -780,9 +844,9 @@ void Renderer::Initialize(InitializeParams& initializeParams)
 			//その他
 			logger << "\tTimestampValid: " << ppQFPs[i][j].timestampValidBits << std::endl;
 			logger << "\tMinImageTimestampGranularity: "
-			       << ppQFPs[i][j].minImageTransferGranularity.width << ", "
-			       << ppQFPs[i][j].minImageTransferGranularity.height << ", "
-			       << ppQFPs[i][j].minImageTransferGranularity.depth << std::endl;
+				<< ppQFPs[i][j].minImageTransferGranularity.width << ", "
+				<< ppQFPs[i][j].minImageTransferGranularity.height << ", "
+				<< ppQFPs[i][j].minImageTransferGranularity.depth << std::endl;
 		}
 	}
 	logger << std::endl;
@@ -796,11 +860,11 @@ void Renderer::Initialize(InitializeParams& initializeParams)
 	//論理デバイスの作成
 
 	VkDeviceQueueCreateInfo DQCInfo;
-	DQCInfo.sType		    = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-	DQCInfo.pNext		    = nullptr;			// 拡張機能を使わないのでnull
-	DQCInfo.flags		    = 0;			//現在のversionではこの属性は使われない
-	DQCInfo.queueFamilyIndex    = queue_family_index;	//使用するキューファミリの指定，vkGetPhysicalDeviceQueueFamilyPropertiesで得られる情報をもとに決める．
-	DQCInfo.queueCount	    = queue_family_queue_count; //使うキューの数，当該キューファミリがこの数のキューを使える必要がある．
+	DQCInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+	DQCInfo.pNext = nullptr;			// 拡張機能を使わないのでnull
+	DQCInfo.flags = 0;			//現在のversionではこの属性は使われない
+	DQCInfo.queueFamilyIndex = queue_family_index;	//使用するキューファミリの指定，vkGetPhysicalDeviceQueueFamilyPropertiesで得られる情報をもとに決める．
+	DQCInfo.queueCount = queue_family_queue_count; //使うキューの数，当該キューファミリがこの数のキューを使える必要がある．
 	float* queuePrioritiesArray = new float[queue_family_queue_count];
 	for (uint32_t i = 0; i < queue_family_queue_count; i++) {
 		queuePrioritiesArray[i] = 1.0f;
@@ -816,7 +880,7 @@ void Renderer::Initialize(InitializeParams& initializeParams)
 		exit(1);
 	}
 	VkExtensionProperties* supportedDeviceExtensions = new VkExtensionProperties[suppurtedDeviceExtensionCount];
-	result						 = vkEnumerateDeviceExtensionProperties(pPDs[physical_device_index], nullptr, &suppurtedDeviceExtensionCount, supportedDeviceExtensions);
+	result = vkEnumerateDeviceExtensionProperties(pPDs[physical_device_index], nullptr, &suppurtedDeviceExtensionCount, supportedDeviceExtensions);
 	if (result != VK_SUCCESS) {
 		logger << "Fail to get device extension." << std::endl;
 		exit(1);
@@ -828,20 +892,31 @@ void Renderer::Initialize(InitializeParams& initializeParams)
 	}
 
 	const uint32_t deviceExtensionCount = 1;
-	const char** deviceExtensionName    = new const char*[deviceExtensionCount];
-	deviceExtensionName[0]		    = VK_KHR_SWAPCHAIN_EXTENSION_NAME; // スワップチェーン作成に必要な拡張のためのマクロ
+	const char** deviceExtensionName = new const char* [deviceExtensionCount];
+	deviceExtensionName[0] = VK_KHR_SWAPCHAIN_EXTENSION_NAME; // スワップチェーン作成に必要な拡張のためのマクロ
+
+	// 必要なオプション機能を有効
+	VkPhysicalDeviceDescriptorIndexingFeatures indexingFeatures = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES };
+	indexingFeatures.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
+	indexingFeatures.descriptorBindingPartiallyBound = VK_TRUE;
+	indexingFeatures.runtimeDescriptorArray = VK_TRUE;
+	indexingFeatures.pNext = nullptr;
+
+	VkPhysicalDeviceBufferDeviceAddressFeatures bufferDeviceAddressFeatures = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES };
+	bufferDeviceAddressFeatures.bufferDeviceAddress = VK_TRUE;
+	bufferDeviceAddressFeatures.pNext = &indexingFeatures;
 
 	VkDeviceCreateInfo DCInfo;
-	DCInfo.sType		       = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-	DCInfo.pNext		       = nullptr;
-	DCInfo.flags		       = 0;	   //現在のversionではこの属性は使われない
-	DCInfo.queueCreateInfoCount    = 1;	   //キューは複数作成できるが，ここでは一つのキューだけを与える，
-	DCInfo.pQueueCreateInfos       = &DQCInfo; // 複数のキューファミリーを割り当てる場合はここで配列を指定する．今は一つしか指定しないので単なるポインタを渡す．
-	DCInfo.enabledLayerCount       = 1;	   // "VK_LAYER_KHRONOS_validation が使えると仮定してる
-	DCInfo.ppEnabledLayerNames     = &LAYER_NAME;
-	DCInfo.enabledExtensionCount   = deviceExtensionCount; //ここでは拡張機能は設定しない
+	DCInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+	DCInfo.pNext = &bufferDeviceAddressFeatures;
+	DCInfo.flags = 0;	   //現在のversionではこの属性は使われない
+	DCInfo.queueCreateInfoCount = 1;	   //キューは複数作成できるが，ここでは一つのキューだけを与える，
+	DCInfo.pQueueCreateInfos = &DQCInfo; // 複数のキューファミリーを割り当てる場合はここで配列を指定する．今は一つしか指定しないので単なるポインタを渡す．
+	DCInfo.enabledLayerCount = 1;	   // "VK_LAYER_KHRONOS_validation が使えると仮定してる
+	DCInfo.ppEnabledLayerNames = &LAYER_NAME;
+	DCInfo.enabledExtensionCount = deviceExtensionCount; //ここでは拡張機能は設定しない
 	DCInfo.ppEnabledExtensionNames = deviceExtensionName;
-	DCInfo.pEnabledFeatures	       = nullptr; //ここではオプション機能は設定しない，有効化されたオプション機能はこの変数に書き込まれる．
+	DCInfo.pEnabledFeatures = nullptr; //ここではオプション機能は設定しない，有効化されたオプション機能はこの変数に書き込まれる．
 	//サポートされるオプション機能についてはvkGetPhysicalDeviceFeatures()で確認できる．
 
 	VkDevice logicaldevice;
@@ -864,7 +939,7 @@ void Renderer::Initialize(InitializeParams& initializeParams)
 	}
 	logger << "Device Layer size: " << numDLayer << std::endl;
 	VkLayerProperties* pDLPs = new VkLayerProperties[numDLayer];
-	result			 = vkEnumerateDeviceLayerProperties(pPDs[physical_device_index], &numDLayer, pDLPs);
+	result = vkEnumerateDeviceLayerProperties(pPDs[physical_device_index], &numDLayer, pDLPs);
 	if (result != VK_SUCCESS) {
 		logger << "failed to get properties of Layer!!!" << std::endl;
 		exit(1);
@@ -885,9 +960,9 @@ void Renderer::Initialize(InitializeParams& initializeParams)
 
 	// コマンドバッファ用のメモリプール（コマンドプール）を作成
 	VkCommandPoolCreateInfo CPCI;
-	CPCI.sType	      = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-	CPCI.pNext	      = nullptr;
-	CPCI.flags	      = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT; // 各コマンドバッファが再記録を許可
+	CPCI.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+	CPCI.pNext = nullptr;
+	CPCI.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT; // 各コマンドバッファが再記録を許可
 	CPCI.queueFamilyIndex = queue_family_index;
 
 	VkCommandPool CP;
@@ -899,10 +974,10 @@ void Renderer::Initialize(InitializeParams& initializeParams)
 
 	// コマンドバッファを作成
 	VkCommandBufferAllocateInfo CBAI;
-	CBAI.sType		= VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	CBAI.pNext		= nullptr;
-	CBAI.commandPool	= CP;
-	CBAI.level		= VK_COMMAND_BUFFER_LEVEL_PRIMARY; // コマンドバッファのレベル，とりあえず一次
+	CBAI.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	CBAI.pNext = nullptr;
+	CBAI.commandPool = CP;
+	CBAI.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY; // コマンドバッファのレベル，とりあえず一次
 	CBAI.commandBufferCount = 2;				   // 作成するコマンドバッファの数
 
 	result = vkAllocateCommandBuffers(logicaldevice, &CBAI, m_pImpl->CB);
@@ -915,12 +990,12 @@ void Renderer::Initialize(InitializeParams& initializeParams)
 	///////////////////////////プレゼンテーション///////////////////////////
 	////////////////////////////////////////////////////////////////////////
 
-	const int32_t windowWidth  = initializeParams.windowSize.x;
+	const int32_t windowWidth = initializeParams.windowSize.x;
 	const int32_t windowHeight = initializeParams.windowSize.y;
 
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 	GLFWwindow* window = glfwCreateWindow(windowWidth, windowHeight, initializeParams.windowName.data(), nullptr, nullptr);
-	m_pImpl->window	   = window;
+	m_pImpl->window = window;
 	if (window == nullptr) {
 		logger << "fail to create window!!!" << std::endl;
 		exit(1);
@@ -954,13 +1029,13 @@ void Renderer::Initialize(InitializeParams& initializeParams)
 
 	// サーフェスが対応するフォーマットを取得
 	uint32_t supportedFormatCount = 0;
-	result			      = vkGetPhysicalDeviceSurfaceFormatsKHR(pPDs[physical_device_index], surface, &supportedFormatCount, nullptr);
+	result = vkGetPhysicalDeviceSurfaceFormatsKHR(pPDs[physical_device_index], surface, &supportedFormatCount, nullptr);
 	if (result != VK_SUCCESS) {
 		exit(1);
 	}
 	logger << "supported format count; " << supportedFormatCount << std::endl;
 	VkSurfaceFormatKHR* supportedFormats = new VkSurfaceFormatKHR[supportedFormatCount];
-	result				     = vkGetPhysicalDeviceSurfaceFormatsKHR(pPDs[physical_device_index], surface, &supportedFormatCount, supportedFormats);
+	result = vkGetPhysicalDeviceSurfaceFormatsKHR(pPDs[physical_device_index], surface, &supportedFormatCount, supportedFormats);
 	if (result != VK_SUCCESS) {
 		exit(1);
 	}
@@ -972,28 +1047,28 @@ void Renderer::Initialize(InitializeParams& initializeParams)
 	}
 
 	m_pImpl->swapChainImageFormat = supportedFormats[selectedSurfaceFormatIndex].format;
-	m_pImpl->swapChainColorSpace  = supportedFormats[selectedSurfaceFormatIndex].colorSpace;
+	m_pImpl->swapChainColorSpace = supportedFormats[selectedSurfaceFormatIndex].colorSpace;
 
 	// スワップチェーン作成
 	VkSwapchainCreateInfoKHR SCCI;
-	SCCI.sType		   = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-	SCCI.pNext		   = nullptr;
-	SCCI.flags		   = 0u;						  // まだ仕様がない
-	SCCI.surface		   = surface;						  // ここでサーフェスを渡す
-	SCCI.minImageCount	   = 2;							  // ダブルバッファ
-	SCCI.imageFormat	   = supportedFormats[selectedSurfaceFormatIndex].format; // フォーマット，
-	SCCI.imageColorSpace	   = supportedFormats[selectedSurfaceFormatIndex].colorSpace;
-	SCCI.imageExtent	   = m_pImpl->surfaceCapabilities.currentExtent;
-	SCCI.imageArrayLayers	   = 1; // ステレオ視を使わないので 1
-	SCCI.imageUsage		   = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-	SCCI.imageSharingMode	   = VK_SHARING_MODE_EXCLUSIVE;		    // イメージが複数キューで共有されるかどうか，とりあえず exclusive にしておく
+	SCCI.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+	SCCI.pNext = nullptr;
+	SCCI.flags = 0u;						  // まだ仕様がない
+	SCCI.surface = surface;						  // ここでサーフェスを渡す
+	SCCI.minImageCount = 2;							  // ダブルバッファ
+	SCCI.imageFormat = supportedFormats[selectedSurfaceFormatIndex].format; // フォーマット，
+	SCCI.imageColorSpace = supportedFormats[selectedSurfaceFormatIndex].colorSpace;
+	SCCI.imageExtent = m_pImpl->surfaceCapabilities.currentExtent;
+	SCCI.imageArrayLayers = 1; // ステレオ視を使わないので 1
+	SCCI.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+	SCCI.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;		    // イメージが複数キューで共有されるかどうか，とりあえず exclusive にしておく
 	SCCI.queueFamilyIndexCount = 0;					    // ↑が exclusive なのでこの値は無視される
-	SCCI.pQueueFamilyIndices   = nullptr;				    // ↑が exclusive なのでこの値は無視される
-	SCCI.preTransform	   = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR; // イメージの変換は不要
-	SCCI.compositeAlpha	   = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;	    // アルファ合成はしないので opaque とする
-	SCCI.presentMode	   = VK_PRESENT_MODE_FIFO_KHR;		    // 垂直同期させる，同期させないときは immediate か mailbox とする
-	SCCI.clipped		   = false;				    // 見えていない部分であっても処理を走らせる
-	SCCI.oldSwapchain	   = VK_NULL_HANDLE;			    // oldSwapchain はない，リサイクルしたいときは使える
+	SCCI.pQueueFamilyIndices = nullptr;				    // ↑が exclusive なのでこの値は無視される
+	SCCI.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR; // イメージの変換は不要
+	SCCI.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;	    // アルファ合成はしないので opaque とする
+	SCCI.presentMode = VK_PRESENT_MODE_FIFO_KHR;		    // 垂直同期させる，同期させないときは immediate か mailbox とする
+	SCCI.clipped = false;				    // 見えていない部分であっても処理を走らせる
+	SCCI.oldSwapchain = VK_NULL_HANDLE;			    // oldSwapchain はない，リサイクルしたいときは使える
 
 	VkSwapchainKHR swapchain;
 	result = vkCreateSwapchainKHR(logicaldevice, &SCCI, nullptr, &m_pImpl->swapChain);
@@ -1011,20 +1086,20 @@ void Renderer::Initialize(InitializeParams& initializeParams)
 	m_pImpl->swapChainImageCount = swapchainImageCount;
 	m_pImpl->swapChainImageViews = new VkImageView[swapchainImageCount];
 	for (int i = 0; i < swapchainImageCount; i++) {
-		VkImageViewCreateInfo IVCI	     = {};
-		IVCI.sType			     = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-		IVCI.image			     = m_pImpl->swapChainImages[i];
-		IVCI.viewType			     = VK_IMAGE_VIEW_TYPE_2D;
-		IVCI.format			     = supportedFormats[selectedSurfaceFormatIndex].format;
-		IVCI.components.r		     = VK_COMPONENT_SWIZZLE_IDENTITY;
-		IVCI.components.g		     = VK_COMPONENT_SWIZZLE_IDENTITY;
-		IVCI.components.b		     = VK_COMPONENT_SWIZZLE_IDENTITY;
-		IVCI.components.a		     = VK_COMPONENT_SWIZZLE_IDENTITY;
-		IVCI.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT; // color target に使う
-		IVCI.subresourceRange.baseMipLevel   = 0;			  // mipmap も multiple layer も使わない
-		IVCI.subresourceRange.levelCount     = 1;
+		VkImageViewCreateInfo IVCI = {};
+		IVCI.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+		IVCI.image = m_pImpl->swapChainImages[i];
+		IVCI.viewType = VK_IMAGE_VIEW_TYPE_2D;
+		IVCI.format = supportedFormats[selectedSurfaceFormatIndex].format;
+		IVCI.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+		IVCI.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+		IVCI.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+		IVCI.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+		IVCI.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT; // color target に使う
+		IVCI.subresourceRange.baseMipLevel = 0;			  // mipmap も multiple layer も使わない
+		IVCI.subresourceRange.levelCount = 1;
 		IVCI.subresourceRange.baseArrayLayer = 0;
-		IVCI.subresourceRange.layerCount     = 1;
+		IVCI.subresourceRange.layerCount = 1;
 
 		result = vkCreateImageView(logicaldevice, &IVCI, nullptr, &m_pImpl->swapChainImageViews[i]);
 		if (result != VK_SUCCESS) {
@@ -1032,34 +1107,60 @@ void Renderer::Initialize(InitializeParams& initializeParams)
 		}
 	}
 
-	VkDescriptorPoolSize poolSize[2];
-	// ubo用
-	poolSize[0]		    = {};
-	poolSize[0].type	    = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	poolSize[0].descriptorCount = 10;
-	// テクスチャ用
-	poolSize[1]		    = {};
-	poolSize[1].type	    = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	poolSize[1].descriptorCount = 10;
+	{
+		VkDescriptorPoolSize poolSize[2];
+		// ubo用
+		poolSize[0] = {};
+		poolSize[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		poolSize[0].descriptorCount = 10;
+		// テクスチャ用
+		poolSize[1] = {};
+		poolSize[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		poolSize[1].descriptorCount = 10;
 
-	VkDescriptorPoolCreateInfo DPCI = {};
-	DPCI.sType			= VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-	DPCI.poolSizeCount		= 2;
-	DPCI.pPoolSizes			= poolSize;
-	DPCI.maxSets			= 10;
-	DPCI.flags			= 0;
+		VkDescriptorPoolCreateInfo DPCI = {};
+		DPCI.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+		DPCI.poolSizeCount = 2;
+		DPCI.pPoolSizes = poolSize;
+		DPCI.maxSets = 10;
+		DPCI.flags = 0;
 
-	result = vkCreateDescriptorPool(logicaldevice, &DPCI, nullptr, &m_pImpl->descriptorPool);
-	if (result != VK_SUCCESS) {
-		std::cout << "faild to create descriptor pool !!!" << std::endl;
-		exit(1);
+		result = vkCreateDescriptorPool(logicaldevice, &DPCI, nullptr, &m_pImpl->descriptorPool);
+		if (result != VK_SUCCESS) {
+			std::cout << "faild to create descriptor pool !!!" << std::endl;
+			exit(1);
+		}
+	}
+	{
+		VkDescriptorPoolSize poolSize[2];
+		// ubo用
+		poolSize[0] = {};
+		poolSize[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		poolSize[0].descriptorCount = 1000;
+		// テクスチャ用
+		poolSize[1] = {};
+		poolSize[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		poolSize[1].descriptorCount = 1000;
+
+		VkDescriptorPoolCreateInfo DPCI = {};
+		DPCI.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+		DPCI.poolSizeCount = 2;
+		DPCI.pPoolSizes = poolSize;
+		DPCI.maxSets = 10;
+		DPCI.flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT;
+
+		result = vkCreateDescriptorPool(logicaldevice, &DPCI, nullptr, &m_pImpl->descriptorPoolForBindless);
+		if (result != VK_SUCCESS) {
+			std::cout << "faild to create descriptor pool !!!" << std::endl;
+			exit(1);
+		}
 	}
 
 	// viewport と scissor は動的に決められる用途で使われやすい（そういう想定になっている）
-	m_pImpl->viewport.x	   = 0.0f;
-	m_pImpl->viewport.y	   = 0.0f;
-	m_pImpl->viewport.width	   = m_pImpl->surfaceCapabilities.currentExtent.width;
-	m_pImpl->viewport.height   = m_pImpl->surfaceCapabilities.currentExtent.height;
+	m_pImpl->viewport.x = 0.0f;
+	m_pImpl->viewport.y = 0.0f;
+	m_pImpl->viewport.width = m_pImpl->surfaceCapabilities.currentExtent.width;
+	m_pImpl->viewport.height = m_pImpl->surfaceCapabilities.currentExtent.height;
 	m_pImpl->viewport.maxDepth = 1.0f;
 	m_pImpl->viewport.minDepth = 0.0f;
 
@@ -1094,7 +1195,7 @@ void Renderer::Initialize(InitializeParams& initializeParams)
 	FCI.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
 	FCI.flags = 0;
 	FCI.pNext = nullptr;
-	result	  = vkCreateFence(logicaldevice, &FCI, nullptr, &m_pImpl->inFlightFence[0]);
+	result = vkCreateFence(logicaldevice, &FCI, nullptr, &m_pImpl->inFlightFence[0]);
 	if (result != VK_SUCCESS) {
 		exit(1);
 	}
@@ -1136,9 +1237,9 @@ void Renderer::DrawStart()
 
 	// コマンドバッファの開始とリセット
 	VkCommandBufferBeginInfo CBBI;
-	CBBI.sType	      = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO; //
-	CBBI.pNext	      = nullptr;
-	CBBI.flags	      = 0;	 // とりあえず 0 にする．マルチパスレンダリングなどでは設定が必要
+	CBBI.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO; //
+	CBBI.pNext = nullptr;
+	CBBI.flags = 0;	 // とりあえず 0 にする．マルチパスレンダリングなどでは設定が必要
 	CBBI.pInheritanceInfo = nullptr; // 一次のコマンドバッファでは使われない
 
 	result = vkBeginCommandBuffer(m_pImpl->CB[gpuIndex], &CBBI);
@@ -1166,21 +1267,21 @@ void Renderer::UpdatePushConstant(UpdatePushConstantParams& pushConstantParams)
 void Renderer::Draw(DrawParams& drawParams)
 {
 	auto* pGraphicsPipelineImpl = m_pImpl->graphicsPipelineMap[drawParams.graphicsPipelineName];
-	auto& renderPass	    = m_pImpl->renderPassImpl[pGraphicsPipelineImpl->renderPassName]->renderPass;
+	auto& renderPass = m_pImpl->renderPassImpl[pGraphicsPipelineImpl->renderPassName]->renderPass;
 
 	VkResult result;
 	uint32_t gpuIndex = (counter) % 2;
 
 	VkRenderPassBeginInfo RPBI = {};
-	RPBI.sType		   = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-	RPBI.renderPass		   = renderPass;
-	RPBI.framebuffer	   = pGraphicsPipelineImpl->pFrameBuffer[frameBufferIndex];
-	RPBI.renderArea.offset	   = { 0, 0 };
-	RPBI.renderArea.extent	   = m_pImpl->swapChainExtent;
+	RPBI.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+	RPBI.renderPass = renderPass;
+	RPBI.framebuffer = pGraphicsPipelineImpl->pFrameBuffer[frameBufferIndex];
+	RPBI.renderArea.offset = { 0, 0 };
+	RPBI.renderArea.extent = m_pImpl->swapChainExtent;
 	VkClearValue clearColor;
-	clearColor.color     = { 0.0, 0.0, 0.0, 1.0 };
+	clearColor.color = { 0.0, 0.0, 0.0, 1.0 };
 	RPBI.clearValueCount = 1;
-	RPBI.pClearValues    = &clearColor;
+	RPBI.pClearValues = &clearColor;
 	// renderpass 開始を記録
 	vkCmdBeginRenderPass(m_pImpl->CB[gpuIndex], &RPBI, VK_SUBPASS_CONTENTS_INLINE); // renderpass command は一次コマンドで実行される
 
@@ -1205,7 +1306,8 @@ void Renderer::Draw(DrawParams& drawParams)
 	// draw
 	if (drawParams.pIndexArray != nullptr) {
 		vkCmdDrawIndexed(m_pImpl->CB[gpuIndex], drawParams.count, drawParams.instanceCount, 0, 0, 0);
-	} else {
+	}
+	else {
 		vkCmdDraw(m_pImpl->CB[gpuIndex], drawParams.count, drawParams.instanceCount, 0, 0);
 	}
 
@@ -1222,25 +1324,25 @@ void Renderer::DrawEnd()
 
 	// submit
 	VkPipelineStageFlags waitStages = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-	VkSubmitInfo submitInfo		= {};
-	submitInfo.sType		= VK_STRUCTURE_TYPE_SUBMIT_INFO;
-	submitInfo.waitSemaphoreCount	= 1;
-	submitInfo.pWaitSemaphores	= &m_pImpl->imageAvailableSemaphore[gpuIndex];
-	submitInfo.pWaitDstStageMask	= &waitStages;
-	submitInfo.commandBufferCount	= 1;
-	submitInfo.pCommandBuffers	= &m_pImpl->CB[gpuIndex];
+	VkSubmitInfo submitInfo = {};
+	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submitInfo.waitSemaphoreCount = 1;
+	submitInfo.pWaitSemaphores = &m_pImpl->imageAvailableSemaphore[gpuIndex];
+	submitInfo.pWaitDstStageMask = &waitStages;
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = &m_pImpl->CB[gpuIndex];
 	submitInfo.signalSemaphoreCount = 1;
-	submitInfo.pSignalSemaphores	= &m_pImpl->renderFinishedSemaphore[frameBufferIndex];
+	submitInfo.pSignalSemaphores = &m_pImpl->renderFinishedSemaphore[frameBufferIndex];
 
 	vkQueueSubmit(m_pImpl->queue, 1, &submitInfo, m_pImpl->inFlightFence[gpuIndex]);
 
-	VkPresentInfoKHR PI   = {};
-	PI.sType	      = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+	VkPresentInfoKHR PI = {};
+	PI.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 	PI.waitSemaphoreCount = 1;
-	PI.pWaitSemaphores    = &m_pImpl->renderFinishedSemaphore[frameBufferIndex];
-	PI.swapchainCount     = 1;
-	PI.pSwapchains	      = &m_pImpl->swapChain;
-	PI.pImageIndices      = &frameBufferIndex;
+	PI.pWaitSemaphores = &m_pImpl->renderFinishedSemaphore[frameBufferIndex];
+	PI.swapchainCount = 1;
+	PI.pSwapchains = &m_pImpl->swapChain;
+	PI.pImageIndices = &frameBufferIndex;
 	vkQueuePresentKHR(m_pImpl->queue, &PI);
 
 	m_pImpl->isProcessing[gpuIndex] = true;
@@ -1253,38 +1355,38 @@ void Renderer::DrawEnd()
 
 void Renderer::RegisterVertexInputStateImpl3(VertexAttributeLayout* vertexAttributeLayout)
 {
-	auto* pVertexInputStateImpl					     = new RendererImpl::VertexInputStateImpl();
+	auto* pVertexInputStateImpl = new RendererImpl::VertexInputStateImpl();
 	m_pImpl->vertexInputStateImplMap[vertexAttributeLayout->name.data()] = pVertexInputStateImpl;
 
 	pVertexInputStateImpl->bindingDescriptions.resize(1);
-	pVertexInputStateImpl->bindingDescriptions[0].binding	= vertexAttributeLayout->binding; // binding は vkCmdBindVertexBuffers の指定
-	pVertexInputStateImpl->bindingDescriptions[0].stride	= vertexAttributeLayout->stride;
+	pVertexInputStateImpl->bindingDescriptions[0].binding = vertexAttributeLayout->binding; // binding は vkCmdBindVertexBuffers の指定
+	pVertexInputStateImpl->bindingDescriptions[0].stride = vertexAttributeLayout->stride;
 	pVertexInputStateImpl->bindingDescriptions[0].inputRate = VK_VERTEX_INPUT_RATE_VERTEX; // 各頂点ごとに切り替える（インスタンスごとに切り替えることも可能）
 
 	pVertexInputStateImpl->attributeDescriptions.resize(vertexAttributeLayout->attributes.size());
 	for (int i = 0; i < pVertexInputStateImpl->attributeDescriptions.size(); i++) {
-		pVertexInputStateImpl->attributeDescriptions[i].binding	 = vertexAttributeLayout->attributes[i].binding;
+		pVertexInputStateImpl->attributeDescriptions[i].binding = vertexAttributeLayout->attributes[i].binding;
 		pVertexInputStateImpl->attributeDescriptions[i].location = vertexAttributeLayout->attributes[i].location;
 		switch (vertexAttributeLayout->attributes[i].format) {
-		case VertexAttributeLayout::Attributes::AttributeFormat::Error:
+		case VertexAttributeFormat::Error:
 			pVertexInputStateImpl->attributeDescriptions[i].format = VK_FORMAT_UNDEFINED;
 			break;
-		case VertexAttributeLayout::Attributes::AttributeFormat::Vec2:
+		case VertexAttributeFormat::Vec2:
 			pVertexInputStateImpl->attributeDescriptions[i].format = VK_FORMAT_R32G32_SFLOAT;
 			break;
-		case VertexAttributeLayout::Attributes::AttributeFormat::Vec3:
+		case VertexAttributeFormat::Vec3:
 			pVertexInputStateImpl->attributeDescriptions[i].format = VK_FORMAT_R32G32B32_SFLOAT;
 			break;
-		case VertexAttributeLayout::Attributes::AttributeFormat::Vec4:
+		case VertexAttributeFormat::Vec4:
 			pVertexInputStateImpl->attributeDescriptions[i].format = VK_FORMAT_R32G32B32A32_SFLOAT;
 			break;
 		}
 		pVertexInputStateImpl->attributeDescriptions[i].offset = vertexAttributeLayout->attributes[i].offset;
 	}
 
-	pVertexInputStateImpl->vertexInputInfo.sType			       = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-	pVertexInputStateImpl->vertexInputInfo.vertexBindingDescriptionCount   = pVertexInputStateImpl->bindingDescriptions.size();
-	pVertexInputStateImpl->vertexInputInfo.pVertexBindingDescriptions      = pVertexInputStateImpl->bindingDescriptions.data();
+	pVertexInputStateImpl->vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+	pVertexInputStateImpl->vertexInputInfo.vertexBindingDescriptionCount = pVertexInputStateImpl->bindingDescriptions.size();
+	pVertexInputStateImpl->vertexInputInfo.pVertexBindingDescriptions = pVertexInputStateImpl->bindingDescriptions.data();
 	pVertexInputStateImpl->vertexInputInfo.vertexAttributeDescriptionCount = pVertexInputStateImpl->attributeDescriptions.size();
-	pVertexInputStateImpl->vertexInputInfo.pVertexAttributeDescriptions    = pVertexInputStateImpl->attributeDescriptions.data();
+	pVertexInputStateImpl->vertexInputInfo.pVertexAttributeDescriptions = pVertexInputStateImpl->attributeDescriptions.data();
 }

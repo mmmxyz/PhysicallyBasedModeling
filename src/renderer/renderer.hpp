@@ -14,11 +14,11 @@ class GpuTextureMemoryImpl;
 class DescriptorSetImpl;
 
 class Renderer {
-    private:
+private:
 	RendererImpl* m_pImpl = nullptr;
 
-    public:
-	enum ShaderStage{
+public:
+	enum ShaderStage {
 		VertexBit = 0x00000001,
 		FragmentBit = 0x00000010,
 		ComputeBit = 0x00000011,
@@ -27,6 +27,7 @@ class Renderer {
 	enum BufferCreateUsage {
 		Uniform,
 		Vertex,
+		VertexIndex,
 		Transfer
 	};
 
@@ -43,7 +44,6 @@ class Renderer {
 	};
 
 	struct DescriptorSetInterface {
-		int set;
 		DescriptorSetImpl* pDescriptorSetImpl = nullptr;
 	};
 
@@ -62,27 +62,58 @@ class Renderer {
 		ValueArray<DescriptorInfo> descriptorInfos;
 	};
 
+	enum VertexAttributeFormat
+	{
+		Float,
+		Int,
+		Vec2,
+		Vec3,
+		Vec4,
+		Mat2,
+		Mat3,
+		Mat4,
+		Error
+	};
+
+	enum ShaderStageType {
+		ShaderStageVertex,
+		ShaderStageFragment,
+	};
+
+	enum ImageFormat {
+		Undef,
+		SameAsSwapChain,
+		RGBA8_SNORM,
+		DEPTH16_UNORM,
+	};
+
+
+
 	GpuBuffer CreateGpuBuffer(uint32_t size, BufferCreateUsage usage);
-	GpuTexture CreateGpuTexture(uint32_t width, uint32_t height);
+	GpuTexture CreateGpuTexture(uint32_t width, uint32_t height, ImageFormat format);
 	DescriptorSetInterface CreateDescriptorSetInterface(std::string graphicsPipelineName, int set);
+	DescriptorSetInterface CreateDescriptorSetInterface(std::string graphicsPipelineName, int set, bool isBindless, int bindlessCounter);
+
 	void WriteDescriptorSet(DescriptorWriterParams& descriptorWriteParams, DescriptorSetInterface& descriptorSetInterface);
 
 	void GetCpuMemoryPointer(GpuBuffer& gpuMemory, void** ppData);
 	void UnmapCpuMemoryPointer(GpuBuffer& gpuMemoryImpl);
 	void TransferStagingBufferToImage(GpuBuffer& stagingBuffer, GpuTexture& textureMemory);
 
+
+
 	struct DescriptorSetBindingParams // DescriptorSet �Ɠ��l
 	{
 		enum DescriptorType {
 			UniformBuffer_bit = 0x00000001,
-			Sampler_bit	  = 0x00000010,
-			Texture_bit	  = 0x00000100,
+			Sampler_bit = 0x00000010,
+			Texture_bit = 0x00000100,
 		};
 
 		DescriptorType type;
 
 		enum ShaderStage {
-			Vertex_bit   = 0x00000001,
+			Vertex_bit = 0x00000001,
 			Fragment_bit = 0x00000010,
 		};
 
@@ -94,34 +125,25 @@ class Renderer {
 	struct DescriptorSetLayoutParams // DescriptorSetLayout �Ɠ��l
 	{
 		ValueArray<DescriptorSetBindingParams*> descriptorSetBindingParams;
+		bool isBindless = false;
 	};
 
 	struct VertexAttributeLayout // VertexInputState �Ɠ��l
 	{
 		std::string name;
 		struct Attributes {
-		    public:
+		public:
 			//std::string name = ""; // location
 			int location = 0;
-			int size     = 0;
-			enum AttributeFormat {
-				Float,
-				Int,
-				Vec2,
-				Vec3,
-				Vec4,
-				Mat2,
-				Mat3,
-				Mat4,
-				Error
-			} format;
-			int offset  = 0;
+			int size = 0;
+			VertexAttributeFormat format;
+			int offset = 0;
 			int binding = 0;
 		};
 
 		// �Ƃ肠���� binding = 0 �Œ�
 		ValueArray<Attributes> attributes;
-		int stride  = 0;
+		int stride = 0;
 		int binding = 0;
 	};
 
@@ -129,23 +151,13 @@ class Renderer {
 	{
 		std::string shaderPath = "";
 		int specializationConstantCount;
-		enum ShaderStageType {
-			Vertex,
-			Fragment,
-		} stageType;
+		ShaderStageType stageType;
 	};
 
 	struct AttachmentParams {
-		enum Format {
-			Undef,
-			SameAsSwapChain,
-			RGBA8_SNORM,
-			DEPTH16_UNORM,
-		};
-
-		Format format = Undef;
-		bool clear    = true;
-		bool store    = true;
+		ImageFormat format = Undef;
+		bool clear = true;
+		bool store = true;
 		// initialLayout
 		// finalLayout
 	};
@@ -173,9 +185,9 @@ class Renderer {
 	};
 
 	template <typename AttributeType>
-	static VertexAttributeLayout::Attributes::AttributeFormat typeConverterFormat()
+	static VertexAttributeFormat typeConverterFormat()
 	{
-		return VertexAttributeLayout::Attributes::AttributeFormat::Error;
+		return VertexAttributeFormat::Error;
 	}
 
 	// TODO : vulkan �ˑ����Ȃ���
@@ -183,33 +195,33 @@ class Renderer {
 	static void SetVertexAttributeDescription2(VertexAttributeLayout* pVertexAttributeLayout)
 	{
 		// �G���[
-		pVertexAttributeLayout->attributes[0].binding  = 0; // binding �� vkCmdBindVertexBuffers �̎w��
+		pVertexAttributeLayout->attributes[0].binding = 0; // binding �� vkCmdBindVertexBuffers �̎w��
 		pVertexAttributeLayout->attributes[0].location = 0;
-		pVertexAttributeLayout->attributes[0].format   = typeConverterFormat<decltype(ValueType::position)>(); // glsl �ł� vec3
-		pVertexAttributeLayout->attributes[0].offset   = offsetof(ValueType, ValueType::position);
+		pVertexAttributeLayout->attributes[0].format = typeConverterFormat<decltype(ValueType::position)>(); // glsl �ł� vec3
+		pVertexAttributeLayout->attributes[0].offset = offsetof(ValueType, ValueType::position);
 
-		pVertexAttributeLayout->attributes[1].binding  = 0; // binding �� vkCmdBindVertexBuffers �̎w��
+		pVertexAttributeLayout->attributes[1].binding = 0; // binding �� vkCmdBindVertexBuffers �̎w��
 		pVertexAttributeLayout->attributes[1].location = 1;
-		pVertexAttributeLayout->attributes[1].format   = typeConverterFormat<decltype(ValueType::normal)>(); // glsl �ł� vec3
-		pVertexAttributeLayout->attributes[1].offset   = offsetof(ValueType, ValueType::normal);
+		pVertexAttributeLayout->attributes[1].format = typeConverterFormat<decltype(ValueType::normal)>(); // glsl �ł� vec3
+		pVertexAttributeLayout->attributes[1].offset = offsetof(ValueType, ValueType::normal);
 
-		pVertexAttributeLayout->attributes[2].binding  = 0; // binding �� vkCmdBindVertexBuffers �̎w��
+		pVertexAttributeLayout->attributes[2].binding = 0; // binding �� vkCmdBindVertexBuffers �̎w��
 		pVertexAttributeLayout->attributes[2].location = 2;
-		pVertexAttributeLayout->attributes[2].format   = typeConverterFormat<decltype(ValueType::color)>(); // glsl �ł� vec4
-		pVertexAttributeLayout->attributes[2].offset   = offsetof(ValueType, ValueType::color);
+		pVertexAttributeLayout->attributes[2].format = typeConverterFormat<decltype(ValueType::color)>(); // glsl �ł� vec4
+		pVertexAttributeLayout->attributes[2].offset = offsetof(ValueType, ValueType::color);
 
-		pVertexAttributeLayout->attributes[3].binding  = 0; // binding �� vkCmdBindVertexBuffers �̎w��
+		pVertexAttributeLayout->attributes[3].binding = 0; // binding �� vkCmdBindVertexBuffers �̎w��
 		pVertexAttributeLayout->attributes[3].location = 3;
-		pVertexAttributeLayout->attributes[3].format   = typeConverterFormat<decltype(ValueType::uv)>();
-		pVertexAttributeLayout->attributes[3].offset   = offsetof(ValueType, ValueType::uv);
+		pVertexAttributeLayout->attributes[3].format = typeConverterFormat<decltype(ValueType::uv)>();
+		pVertexAttributeLayout->attributes[3].offset = offsetof(ValueType, ValueType::uv);
 	}
 
 	template <class ValueType>
 	static void CreateVertexAttributeLayout2(VertexAttributeLayout* pVertexAttributeLayout)
 	{
-		pVertexAttributeLayout->name	= typeid(ValueType).name();
+		pVertexAttributeLayout->name = typeid(ValueType).name();
 		pVertexAttributeLayout->binding = 0; // binding �� vkCmdBindVertexBuffers �̎w��
-		pVertexAttributeLayout->stride	= sizeof(ValueType);
+		pVertexAttributeLayout->stride = sizeof(ValueType);
 
 		pVertexAttributeLayout->attributes.resize(4);
 		SetVertexAttributeDescription2<ValueType>(pVertexAttributeLayout);
@@ -218,7 +230,7 @@ class Renderer {
 	void RegisterVertexInputStateImpl3(VertexAttributeLayout* vertexAttributeLayout);
 
 	class InitializeParams {
-	    public:
+	public:
 		bool isDebugMode = false;
 		ivec2 windowSize = ivec2(800, 600);
 		std::string windowName;
@@ -250,27 +262,27 @@ class Renderer {
 	}
 
 	class DrawParams {
-	    public:
-		GpuMemoryImpl *pVertexArray;
+	public:
+		GpuMemoryImpl* pVertexArray;
 		uint32_t count; // index or vertex 
 		uint32_t instanceCount;
-		GpuMemoryImpl *pIndexArray;
+		GpuMemoryImpl* pIndexArray;
 		std::vector<DescriptorSetInterface> descriptorSetInterfaces;
 		std::string graphicsPipelineName;
 	};
 
 	class UpdatePushConstantParams
 	{
-		public:
+	public:
 		std::string graphicsPipelineName;
 		int shaderStage;
-		void * pData = nullptr;
+		void* pData = nullptr;
 		int32_t size = 0;
 	};
 
-	void UpdatePushConstant(UpdatePushConstantParams & pushConstantParams);
+	void UpdatePushConstant(UpdatePushConstantParams& pushConstantParams);
 
-	uint32_t counter	  = 0;
+	uint32_t counter = 0;
 	uint32_t frameBufferIndex = 999;
 	bool DrawCondition();
 	void DrawStart();
@@ -279,17 +291,17 @@ class Renderer {
 };
 
 template <>
-inline Renderer::VertexAttributeLayout::Attributes::AttributeFormat Renderer::typeConverterFormat<fvec2>()
+inline Renderer::VertexAttributeFormat Renderer::typeConverterFormat<fvec2>()
 {
-	return VertexAttributeLayout::Attributes::AttributeFormat::Vec2;
+	return  Renderer::VertexAttributeFormat::Vec2;
 }
 template <>
-inline Renderer::VertexAttributeLayout::Attributes::AttributeFormat Renderer::typeConverterFormat<fvec3>()
+inline  Renderer::VertexAttributeFormat Renderer::typeConverterFormat<fvec3>()
 {
-	return VertexAttributeLayout::Attributes::AttributeFormat::Vec3;
+	return  Renderer::VertexAttributeFormat::Vec3;
 }
 template <>
-inline Renderer::VertexAttributeLayout::Attributes::AttributeFormat Renderer::typeConverterFormat<fvec4>()
+inline  Renderer::VertexAttributeFormat Renderer::typeConverterFormat<fvec4>()
 {
-	return VertexAttributeLayout::Attributes::AttributeFormat::Vec4;
+	return  Renderer::VertexAttributeFormat::Vec4;
 }

@@ -29,13 +29,56 @@ struct UboData {
 [[vk::binding(0, 0)]] ConstantBuffer<PersMatrixData> persMatrix;
 [[vk::binding(0, 1)]] ConstantBuffer<UboData> uboData;
 
+float3x3 outerProdut(float3 a, float3 b)
+{
+	return float3x3(a.x * b.x, a.x * b.y, a.x * b.z,
+					a.y * b.x, a.y * b.y, a.y * b.z,
+					a.z * b.x, a.z * b.y, a.z * b.z);
+}
+
+float3x3 vectorToRotation(float3 vec)
+{
+	float3x3 rotMatrix;
+
+	float theta = length(vec);
+
+
+	if (theta < 0.0001)
+	{
+		return float3x3(1.0, 0.0, 0.0,
+						0.0, 1.0, 0.0,
+						0.0, 0.0, 1.0);
+	}
+
+	float3 nvec = normalize(vec);
+
+	rotMatrix = cos(theta) * float3x3(1.0, 0.0, 0.0,
+									   0.0, 1.0, 0.0,
+									   0.0, 0.0, 1.0)
+				+ (1 - cos(theta)) * outerProdut(nvec , nvec)
+				+ sin(theta) * float3x3(0.0, -nvec.z, nvec.y,
+										 nvec.z, 0.0, -nvec.x,
+										 -nvec.y, nvec.x, 0.0);
+
+	return rotMatrix;
+
+}
+
 [[shader("vertex")]] VSOutput vertexMain(VSInput input)
 {
 	VSOutput output;
 
-	output.position = float4(input.position, 1.0);
-	output.position.x += uboData.time;
-	output.position.y *= pushConstant.flip;
+	float3 pos = input.position;
+	pos = mul( vectorToRotation(float3(1.0, 1.0, 0.0) * uboData.time) , pos );
+
+	pos.z -= 4;
+
+
+	float4 pos4 = float4(pos, 1.0);
+	pos4 = mul( persMatrix.persMat , pos4 );
+
+	output.position = pos4;
+
 	output.uv = input.uv;
 
 	return output;
@@ -51,8 +94,8 @@ struct FSOutput {
 	[[vk::location(0)]] float4 color;
 };
 
-[[vk::binding(2, 0)]] Texture2D testTexture;
-[[vk::binding(2, 0)]] SamplerState testSampler;
+[[vk::binding(1, 1)]] Texture2D testTexture;
+[[vk::binding(1, 1)]] SamplerState testSampler;
 
 [[shader("fragment")]] FSOutput fragmentMain(FSInput input)
 {

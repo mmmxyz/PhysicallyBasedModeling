@@ -19,7 +19,7 @@ void DrawVertexArray<ValueType>::gpuInitialize(RendererImpl* pRendererImpl)
 
 	m_pGpuMemoryImpl = new GpuMemoryImpl();
 
-	pRendererImpl->CreateBuffer(*m_pGpuMemoryImpl, Renderer::Vertex, this->size() * getValueTypeSize());
+	pRendererImpl->CreateBuffer(*m_pGpuMemoryImpl, (m_isIndexBufffer) ? Renderer::BufferCreateUsage::VertexIndex : Renderer::BufferCreateUsage::Vertex, this->size() * getValueTypeSize());
 }
 
 template<class ValueType>
@@ -35,7 +35,7 @@ void DrawVertexArray<ValueType>::updateGpuMemory(RendererImpl* pRendererImpl)
 		exit(1);
 	}
 
-	std::memcpy(mappedData, this->data(), this->size() *getValueTypeSize());
+	std::memcpy(mappedData, this->data(), this->size() * getValueTypeSize());
 
 	// VK_MEMORY_PROPERTY_HOST_COHERENT_BIT ���^�Ȃ̂� flush �̕K�v�͂Ȃ����ꉞ
 	VkMappedMemoryRange memoryRange;

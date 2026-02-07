@@ -19,15 +19,16 @@ class DrawVertexArray : public ValueArray<ValueType>
 {
 private:
 	GpuMemoryImpl* m_pGpuMemoryImpl = nullptr;
+	bool m_isIndexBufffer = false;
 public:
 
-	DrawVertexArray(TypeAllocator<ValueType>& alloc)
-		: ValueArray<ValueType>(alloc)
+	DrawVertexArray(TypeAllocator<ValueType>& alloc, bool isIndexBuffer = false)
+		: ValueArray<ValueType>(alloc), m_isIndexBufffer(isIndexBuffer)
 	{
 	}
 
-	DrawVertexArray(uint32_t size, TypeAllocator<ValueType>& alloc)
-		: ValueArray<ValueType>(size, alloc)
+	DrawVertexArray(uint32_t size, TypeAllocator<ValueType>& alloc, bool isIndexBuffer = false)
+		: ValueArray<ValueType>(size, alloc), m_isIndexBufffer(isIndexBuffer)
 	{
 	}
 

@@ -7,9 +7,12 @@
 #include <cstring>
 #include <filesystem>
 
+#include "src/utils/fileloader/OBJLoader.hpp"
+
+
 class DrawObject
 {
-	public:
+public:
 	Renderer::DescriptorSetInterface descriptorSetInterface;
 	DrawVertexArray<BasicVertex> drawArray;
 	DrawVertexArray<int32_t> indexdrawArray;
@@ -19,8 +22,11 @@ class DrawObject
 
 	Renderer::DescriptorWriterParams descriptorWriterParams;
 
-	DrawObject(TypeAllocator<BasicVertex> & vertexAllocator, TypeAllocator<int32_t> & intAllocator)
-		: drawArray(0, vertexAllocator),indexdrawArray(0, intAllocator)
+	uint32_t vertexCount = 0;
+	uint32_t indexCount = 0;
+
+	DrawObject(TypeAllocator<BasicVertex>& vertexAllocator, TypeAllocator<int32_t>& intAllocator, uint32_t vertexCount, uint32_t indexCount)
+		: drawArray(0, vertexAllocator), indexdrawArray(0, intAllocator, true), vertexCount(vertexCount), indexCount(indexCount)
 	{
 
 	}
@@ -28,9 +34,11 @@ class DrawObject
 	void Initialize(Renderer& renderer)
 	{
 
-		drawArray.resize(3);
-
+		drawArray.resize(vertexCount);
 		renderer.InitializeVertexArray(&drawArray);
+
+		indexdrawArray.resize(indexCount);
+		renderer.InitializeVertexArray(&indexdrawArray);
 
 		uboBuffer = renderer.CreateGpuBuffer(32, Renderer::Uniform);
 		void* uboCpuPtr = nullptr;
@@ -40,7 +48,7 @@ class DrawObject
 		renderer.UnmapCpuMemoryPointer(uboBuffer);
 
 		textureMemory;
-		textureMemory = renderer.CreateGpuTexture(128, 128);
+		textureMemory = renderer.CreateGpuTexture(128, 128, Renderer::ImageFormat::RGBA8_SNORM);
 
 		Renderer::GpuBuffer stagingBuffer = renderer.CreateGpuBuffer(128 * 128 * 4, Renderer::Transfer);
 		uint32_t* stagingBufferCpu = nullptr;
@@ -59,19 +67,18 @@ class DrawObject
 		renderer.TransferStagingBufferToImage(stagingBuffer, textureMemory);
 
 
-
-		descriptorSetInterface = renderer.CreateDescriptorSetInterface("testPipeline", 0);
+		descriptorSetInterface = renderer.CreateDescriptorSetInterface("testPipeline", 1);
 
 		Renderer::DescriptorWriterParams::DescriptorInfo uboDescriptorInfo;
 		uboDescriptorInfo.type = Renderer::DescriptorWriterParams::DescriptorInfo::UniformBuffer;
-		uboDescriptorInfo.bindingNum = 1;
+		uboDescriptorInfo.bindingNum = 0;
 		uboDescriptorInfo.count = 1;
 		uboDescriptorInfo.pResources.resize(1);
 		uboDescriptorInfo.pResources[0] = uboBuffer.pGpuMemoryImpl;
 		descriptorWriterParams.descriptorInfos.push_back(uboDescriptorInfo);
 		Renderer::DescriptorWriterParams::DescriptorInfo textureDescriptorInfo;
 		textureDescriptorInfo.type = Renderer::DescriptorWriterParams::DescriptorInfo::Combined_Image_Sampler;
-		textureDescriptorInfo.bindingNum = 2;
+		textureDescriptorInfo.bindingNum = 1;
 		textureDescriptorInfo.count = 1;
 		textureDescriptorInfo.pResources.resize(1);
 		textureDescriptorInfo.pResources[0] = textureMemory.pGpuTextureMemoryImpl;
@@ -88,8 +95,8 @@ int main()
 {
 	Renderer::InitializeParams rendererInitializeParams;
 	rendererInitializeParams.isDebugMode = true;
-	rendererInitializeParams.windowSize  = ivec2(1280, 720);
-	rendererInitializeParams.windowName  = "Renderer Test";
+	rendererInitializeParams.windowSize = ivec2(1280, 720);
+	rendererInitializeParams.windowName = "Renderer Test";
 
 	Renderer renderer;
 	renderer.Initialize(rendererInitializeParams);
@@ -97,24 +104,24 @@ int main()
 	Renderer::GraphicsPipelineParams graphicsPipelineParams;
 
 	Renderer::ShaderStageParams vertexShaderStage;
-	vertexShaderStage.stageType  = Renderer::ShaderStageParams::Vertex;
+	vertexShaderStage.stageType = Renderer::ShaderStageVertex;
 	vertexShaderStage.shaderPath = "ShaderBinary/test.vert.spv";
 
 	Renderer::ShaderStageParams fragmentShaderStage;
-	fragmentShaderStage.stageType  = Renderer::ShaderStageParams::Fragment;
+	fragmentShaderStage.stageType = Renderer::ShaderStageFragment;
 	fragmentShaderStage.shaderPath = "ShaderBinary/test.frag.spv";
 
 	graphicsPipelineParams.name = "testPipeline";
 	graphicsPipelineParams.shaders.resize(2);
 	graphicsPipelineParams.shaders[0] = &vertexShaderStage;
 	graphicsPipelineParams.shaders[1] = &fragmentShaderStage;
-	
+
 	Renderer::VertexAttributeLayout vertexAttributeLayout;
 	Renderer::CreateVertexAttributeLayout2<BasicVertex>(&vertexAttributeLayout);
 	renderer.RegisterVertexInputStateImpl3(&vertexAttributeLayout);
-	
+
 	graphicsPipelineParams.vertexLayoutName = vertexAttributeLayout.name;
-	
+
 	Renderer::DescriptorSetLayoutParams descriptorSetLayout;
 	Renderer::DescriptorSetBindingParams persMatUboDescriptorSetLayout;
 	persMatUboDescriptorSetLayout.bindingNum = 0;
@@ -122,107 +129,125 @@ int main()
 	persMatUboDescriptorSetLayout.count = 1;
 	persMatUboDescriptorSetLayout.shaderStage = Renderer::DescriptorSetBindingParams::Vertex_bit;
 	descriptorSetLayout.descriptorSetBindingParams.push_back(&persMatUboDescriptorSetLayout);
+	descriptorSetLayout.isBindless = false;
 
+	Renderer::DescriptorSetLayoutParams descriptorSetLayout2;
 	Renderer::DescriptorSetBindingParams uboDescriptorSetLayout;
-	uboDescriptorSetLayout.bindingNum  = 1;
-	uboDescriptorSetLayout.type	   = Renderer::DescriptorSetBindingParams::UniformBuffer_bit;
-	uboDescriptorSetLayout.count	   = 1;
+	uboDescriptorSetLayout.bindingNum = 0;
+	uboDescriptorSetLayout.type = Renderer::DescriptorSetBindingParams::UniformBuffer_bit;
+	uboDescriptorSetLayout.count = 1;
 	uboDescriptorSetLayout.shaderStage = Renderer::DescriptorSetBindingParams::Vertex_bit;
-	descriptorSetLayout.descriptorSetBindingParams.push_back(&uboDescriptorSetLayout);
-	
-	Renderer::DescriptorSetBindingParams textureDescriptorSetLayout;
-	textureDescriptorSetLayout.bindingNum  = 2;
-	textureDescriptorSetLayout.type	       = Renderer::DescriptorSetBindingParams::Texture_bit;
-	textureDescriptorSetLayout.count       = 1;
-	textureDescriptorSetLayout.shaderStage = Renderer::DescriptorSetBindingParams::Fragment_bit;
-	descriptorSetLayout.descriptorSetBindingParams.push_back(&textureDescriptorSetLayout);
-	
-	graphicsPipelineParams.descriptorSetParams.push_back(&descriptorSetLayout);
-	
-	Renderer::RenderPassParams renderPassParams;
-	renderPassParams.name	     = "RenderPass";
-	renderPassParams.attachments = {
-		{ Renderer::AttachmentParams::Format::SameAsSwapChain,
-		    true,
-		    true },
-		};
-		renderPassParams.subpasses = {
-			{ {
-				0,
-			},
-		    -1 }
-		};
-		
-		renderer.CreateRenderPass(renderPassParams);
+	descriptorSetLayout2.descriptorSetBindingParams.push_back(&uboDescriptorSetLayout);
 
-		graphicsPipelineParams.renderPassName	= "RenderPass";
-		graphicsPipelineParams.pushConstantSize = sizeof(uint32_t);
-		
-		renderer.CreateGraphicsPipeline(graphicsPipelineParams);
-		
-		
+	Renderer::DescriptorSetBindingParams textureDescriptorSetLayout;
+	textureDescriptorSetLayout.bindingNum = 1;
+	textureDescriptorSetLayout.type = Renderer::DescriptorSetBindingParams::Texture_bit;
+	textureDescriptorSetLayout.count = 1;
+	textureDescriptorSetLayout.shaderStage = Renderer::DescriptorSetBindingParams::Fragment_bit;
+	descriptorSetLayout2.descriptorSetBindingParams.push_back(&textureDescriptorSetLayout);
+	descriptorSetLayout2.isBindless = false;
+
+	graphicsPipelineParams.descriptorSetParams.push_back(&descriptorSetLayout);
+	graphicsPipelineParams.descriptorSetParams.push_back(&descriptorSetLayout2);
+
+	Renderer::RenderPassParams renderPassParams;
+	renderPassParams.name = "RenderPass";
+	renderPassParams.attachments = {
+		{ Renderer::ImageFormat::SameAsSwapChain,
+			true,
+			true },
+	};
+	renderPassParams.subpasses = {
+		{ {
+			0,
+		},
+		-1 }
+	};
+
+	renderer.CreateRenderPass(renderPassParams);
+
+	graphicsPipelineParams.renderPassName = "RenderPass";
+	graphicsPipelineParams.pushConstantSize = sizeof(uint32_t);
+
+	renderer.CreateGraphicsPipeline(graphicsPipelineParams);
+
+
 	//////////
-	
+	std::vector<fvec3> positions;
+	std::vector<fvec3> normals;
+	std::vector<fvec2> uvs;
+	std::vector<uint32_t> faceindices;
+	LoadOBJtoRenderTriangleMesh(
+		"../../../../../resources/Bunny.obj",
+		positions,
+		normals,
+		uvs,
+		faceindices,
+		fvec3(0.0f, 0.0f, 0.0f),
+		0.5f);
+
 	RootAllocator RootAllocator;
 	TypeAllocator<BasicVertex> vertexAllocator(&RootAllocator, "vertexAllocator");
 	TypeAllocator<int32_t> intAllocator(&RootAllocator, "intAllocator");
-	
-	DrawObject drawObject(vertexAllocator, intAllocator);
+
+	DrawObject drawObject(vertexAllocator, intAllocator, positions.size(), faceindices.size());
 	drawObject.Initialize(renderer);
 
 	drawObject.WriteDescriptorSet(renderer);
 
-	drawObject.drawArray[0].position(0) = -0.5f;
-	drawObject.drawArray[0].position(1) = 0.0f;
-	drawObject.drawArray[0].position(2) = 0.0f;
-	drawObject.drawArray[0].uv(0) = 0.0f;
-	drawObject.drawArray[0].uv(1) = 1.0f;
-	
-	drawObject.drawArray[1].position(0) = 0.5f;
-	drawObject.drawArray[1].position(1) = 0.0f;
-	drawObject.drawArray[1].position(2) = 0.0f;
-	drawObject.drawArray[1].uv(0) = 1.0f;
-	drawObject.drawArray[1].uv(1) = 1.0f;
-	
-	drawObject.drawArray[2].position(0) = 0.0f;
-	drawObject.drawArray[2].position(1) = 0.5f;
-	drawObject.drawArray[2].position(2) = 0.0f;
-	drawObject.drawArray[2].uv(0) = 0.5f;
-	drawObject.drawArray[2].uv(1) = 0.0f;
+
+	for (uint32_t i = 0; i < positions.size(); i++) {
+		drawObject.drawArray[i].position(0) = positions[i].x;
+		drawObject.drawArray[i].position(1) = positions[i].y;
+		drawObject.drawArray[i].position(2) = positions[i].z;
+		drawObject.drawArray[i].normal(0) = normals[i].x;
+		drawObject.drawArray[i].normal(1) = normals[i].y;
+		drawObject.drawArray[i].normal(2) = normals[i].z;
+		drawObject.drawArray[i].uv(0) = uvs[i].x;
+		drawObject.drawArray[i].uv(1) = uvs[i].y;
+	}
+
+	for (uint32_t i = 0; i < faceindices.size(); i++) {
+		drawObject.indexdrawArray[i] = static_cast<int32_t>(faceindices[i]);
+	}
+
+
 	renderer.UpdateVertexArray(&drawObject.drawArray);
-	
-	Renderer::DrawParams drawParams;
-	drawParams.pVertexArray = drawObject.drawArray.getGpuMemoryImpl();
-	drawParams.count = drawObject.drawArray.size();
-	drawParams.instanceCount = 1;
-	drawParams.pIndexArray = nullptr;
-	drawParams.descriptorSetInterfaces.push_back(drawObject.descriptorSetInterface);
-	drawParams.graphicsPipelineName	  = "testPipeline";
-	
-	
-	auto descriptorSetInterface = renderer.CreateDescriptorSetInterface("testPipeline", 0);
+	renderer.UpdateVertexArray(&drawObject.indexdrawArray);
+
 
 	// perspective 
-	auto persMat = makeProjectionMatrixVk(0.1, 100.0, 1.0, 1.0, 1.0, 1.0);
-	
+	auto persMat = makeProjectionMatrixVk(0.01, 10.0, 0.01, -0.01, 0.01, -0.01).transpose();
+
 	auto persMatUbo = renderer.CreateGpuBuffer(sizeof(persMat), Renderer::Uniform);
 	void* persMatUboCpuBuffer = nullptr;
 	renderer.GetCpuMemoryPointer(persMatUbo, &persMatUboCpuBuffer);
-	std::memcpy(&persMatUboCpuBuffer, &persMat, sizeof(persMat));
+	std::memcpy(persMatUboCpuBuffer, &persMat, sizeof(persMat));
 	renderer.UnmapCpuMemoryPointer(persMatUbo);
-	
+
+	auto descriptorSetInterface = renderer.CreateDescriptorSetInterface("testPipeline", 0);
+
 	Renderer::DescriptorWriterParams persUboDescriptorWriterParams;
 	Renderer::DescriptorWriterParams::DescriptorInfo persUboDescriptorWriteParams;
 	persUboDescriptorWriteParams.type = Renderer::DescriptorWriterParams::DescriptorInfo::UniformBuffer;
-	persUboDescriptorWriteParams.bindingNum = 1;
+	persUboDescriptorWriteParams.bindingNum = 0;
 	persUboDescriptorWriteParams.count = 1;
 	persUboDescriptorWriteParams.pResources.resize(1);
 	persUboDescriptorWriteParams.pResources[0] = persMatUbo.pGpuMemoryImpl;
 	persUboDescriptorWriterParams.descriptorInfos.push_back(persUboDescriptorWriteParams);
-	
-	
+
 	renderer.WriteDescriptorSet(persUboDescriptorWriterParams, descriptorSetInterface);
 
+
+
+	Renderer::DrawParams drawParams;
+	drawParams.pVertexArray = drawObject.drawArray.getGpuMemoryImpl();
+	drawParams.instanceCount = 1;
+	drawParams.pIndexArray = drawObject.indexdrawArray.getGpuMemoryImpl();
+	drawParams.count = drawObject.indexdrawArray.size();
+	drawParams.descriptorSetInterfaces.push_back(drawObject.descriptorSetInterface);
+	drawParams.descriptorSetInterfaces.push_back(descriptorSetInterface);
+	drawParams.graphicsPipelineName = "testPipeline";
 
 	uint32_t counter = 0;
 	while (renderer.DrawCondition()) {
@@ -230,8 +255,9 @@ int main()
 
 		void* uboCpuPtr = nullptr;
 		renderer.GetCpuMemoryPointer(drawObject.uboBuffer, &uboCpuPtr);
-		float* uboFloatCpuPtr	= static_cast<float*>(uboCpuPtr);
-		*uboFloatCpuPtr = std::sin(counter / 50.0f) * 0.6f;
+		float* uboFloatCpuPtr = static_cast<float*>(uboCpuPtr);
+		//*uboFloatCpuPtr = std::sin(counter / 50.0f) * 0.6f;
+		*uboFloatCpuPtr = counter / 50.0f;
 		renderer.UnmapCpuMemoryPointer(drawObject.uboBuffer);
 
 		Renderer::UpdatePushConstantParams updatePushConstantParams;
@@ -239,8 +265,8 @@ int main()
 
 		int32_t foo = ((counter / 30) % 2 == 0) ? 1 : -1;
 
-		updatePushConstantParams.pData	     = &foo;
-		updatePushConstantParams.size	     = sizeof(int32_t);
+		updatePushConstantParams.pData = &foo;
+		updatePushConstantParams.size = sizeof(int32_t);
 		updatePushConstantParams.shaderStage = Renderer::ShaderStage::VertexBit | Renderer::ShaderStage::FragmentBit;
 
 		renderer.UpdatePushConstant(updatePushConstantParams);

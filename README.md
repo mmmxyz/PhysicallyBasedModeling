@@ -7,3 +7,14 @@ Physically Based Modeling
 
 [slang]
 https://github.com/shader-slang/slang
+
+
+## 形状データ
+
+* Bunny
+* Dragon
+* TeaPot
+
+について
+
+Models downloaded from Morgan McGuire's [Computer Graphics Archive](https://casual-effects.com/data)

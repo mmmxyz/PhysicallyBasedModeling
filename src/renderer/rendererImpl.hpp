@@ -37,6 +37,14 @@ public:
 	VkRect2D scissor = { };
 
 	VkDescriptorPool descriptorPool;
+	VkDescriptorPool descriptorPoolForBindless;
+
+	class VkDescriptorSetLayoutImpl
+	{
+		public:
+		VkDescriptorSetLayout descriptorSetLayout;
+		bool isBindless = false;
+	};
 
 	class GraphicsPipelineImpl
 	{
@@ -44,7 +52,7 @@ public:
 		std::string name;
 		VkPipeline graphicsPipeline;
 		VkPipelineLayout pipelineLayout;
-		std::vector<VkDescriptorSetLayout> pDescriptorSetLayout;
+		std::vector<VkDescriptorSetLayoutImpl> pDescriptorSetLayout;
 		VkFramebuffer * pFrameBuffer;
 		std::string renderPassName;
 	};
@@ -90,6 +98,9 @@ public:
 			break;
 		case Renderer::BufferCreateUsage::Vertex:
 			usageFlag = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+			break;
+		case Renderer::BufferCreateUsage::VertexIndex:
+			usageFlag = VK_BUFFER_USAGE_2_INDEX_BUFFER_BIT;
 			break;
 		case Renderer::BufferCreateUsage::Transfer:
 			usageFlag = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
@@ -157,10 +168,25 @@ public:
 		}
 	}
 
-	void CreateImage(uint32_t width, uint32_t height, GpuTextureMemoryImpl& gpuTextureMemoryImpl)
+	void CreateImage(uint32_t width, uint32_t height, GpuTextureMemoryImpl& gpuTextureMemoryImpl, Renderer::ImageFormat format)
 	{
 		gpuTextureMemoryImpl.width = width;
 		gpuTextureMemoryImpl.height = height;
+
+		VkFormat vkFormat;
+		switch (format)
+		{
+		case Renderer::ImageFormat::RGBA8_SNORM:
+			vkFormat = VK_FORMAT_R8G8B8A8_UNORM;
+			break;
+		case Renderer::DEPTH16_UNORM:
+			vkFormat = VK_FORMAT_D16_UNORM;
+			break;
+		default:
+			vkFormat = VK_FORMAT_R8G8B8A8_UNORM;
+			break;
+		}
+
 
 		VkImageCreateInfo imageCreateInfo{};
 		imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -170,7 +196,7 @@ public:
 		imageCreateInfo.extent.depth = 1;
 		imageCreateInfo.mipLevels = 1;
 		imageCreateInfo.arrayLayers = 1;
-		imageCreateInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
+		imageCreateInfo.format = vkFormat;
 		imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
 		imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 		imageCreateInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
@@ -198,14 +224,31 @@ public:
 		vkBindImageMemory(logicalDevice, gpuTextureMemoryImpl.image, gpuTextureMemoryImpl.gpuMemory.deviceMemory, 0);
 	}
 
-	void CreateImageView(GpuTextureMemoryImpl& gpuTextureMemoryImpl)
+	void CreateImageView(GpuTextureMemoryImpl& gpuTextureMemoryImpl, Renderer::ImageFormat format)
 	{
+		VkImageAspectFlags aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+
+		VkFormat vkFormat;
+		switch (format)
+		{
+		case Renderer::ImageFormat::RGBA8_SNORM:
+			vkFormat = VK_FORMAT_R8G8B8A8_UNORM;
+			break;
+		case Renderer::DEPTH16_UNORM:
+			vkFormat = VK_FORMAT_D16_UNORM;
+			aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+			break;
+		default:
+			vkFormat = VK_FORMAT_R8G8B8A8_UNORM;
+			break;
+		}
+
 		VkImageViewCreateInfo textureImageVCI = {};
 		textureImageVCI.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
 		textureImageVCI.image = gpuTextureMemoryImpl.image;
 		textureImageVCI.viewType = VK_IMAGE_VIEW_TYPE_2D;
-		textureImageVCI.format = VK_FORMAT_R8G8B8A8_UNORM;
-		textureImageVCI.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		textureImageVCI.format = vkFormat;
+		textureImageVCI.subresourceRange.aspectMask = aspectMask;
 		textureImageVCI.subresourceRange.baseMipLevel = 0;
 		textureImageVCI.subresourceRange.levelCount = 1;
 		textureImageVCI.subresourceRange.baseArrayLayer = 0;
