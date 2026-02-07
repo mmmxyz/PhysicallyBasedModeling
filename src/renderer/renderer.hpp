@@ -251,7 +251,10 @@ class Renderer {
 
 	class DrawParams {
 	    public:
-		std::vector<GpuMemoryImpl*> vertexArray;
+		GpuMemoryImpl *pVertexArray;
+		uint32_t count; // index or vertex 
+		uint32_t instanceCount;
+		GpuMemoryImpl *pIndexArray;
 		std::vector<DescriptorSetInterface> descriptorSetInterfaces;
 		std::string graphicsPipelineName;
 	};

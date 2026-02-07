@@ -17,12 +17,17 @@ struct VSOutput {
 	[[vk::location(0)]] float2 uv;
 };
 
+struct PersMatrixData {
+	float4x4 persMat;
+};
+
 struct UboData {
 	float time;
 	float3 padding;
 };
 
-[[vk::binding(0, 0)]] ConstantBuffer<UboData> uboData;
+[[vk::binding(0, 0)]] ConstantBuffer<PersMatrixData> persMatrix;
+[[vk::binding(0, 1)]] ConstantBuffer<UboData> uboData;
 
 [[shader("vertex")]] VSOutput vertexMain(VSInput input)
 {
@@ -46,8 +51,8 @@ struct FSOutput {
 	[[vk::location(0)]] float4 color;
 };
 
-[[vk::binding(1, 0)]] Texture2D testTexture;
-[[vk::binding(1, 0)]] SamplerState testSampler;
+[[vk::binding(2, 0)]] Texture2D testTexture;
+[[vk::binding(2, 0)]] SamplerState testSampler;
 
 [[shader("fragment")]] FSOutput fragmentMain(FSInput input)
 {

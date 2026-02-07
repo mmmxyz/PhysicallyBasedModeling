@@ -30,6 +30,12 @@ public:
 		: ValueArray<ValueType>(size, alloc)
 	{
 	}
+
+	int32_t constexpr getValueTypeSize()
+	{
+		return sizeof(ValueType);
+	}
+
 	void gpuInitialize(RendererImpl* pRendererImpl);
 	void updateGpuMemory(RendererImpl* pRendererImpl);
 	void draw(RendererImpl* pRendererImpl);

@@ -74,6 +74,7 @@ public:
 	std::unordered_map<std::string, VkShaderModule> shaderModuleMap;
 	std::unordered_map<std::string, VertexInputStateImpl*> vertexInputStateImplMap;
 	std::unordered_map<std::string, RenderPassImpl*> renderPassImpl;
+	std::unordered_map<std::string, std::vector<DescriptorSetImpl*>> descriptorSetImplMap;
 
 	VkDevice logicalDevice;
 	uint32_t memory_type_index;

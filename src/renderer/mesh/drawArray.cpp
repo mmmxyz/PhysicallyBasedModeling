@@ -9,6 +9,7 @@
 #include "src/renderer/gpuMemoryImpl.hpp"
 #include "src/renderer/mesh/drawArray.hpp"
 
+template class DrawVertexArray<int32_t>;
 template class DrawVertexArray<BasicVertex>;
 
 template<class ValueType>
@@ -18,7 +19,7 @@ void DrawVertexArray<ValueType>::gpuInitialize(RendererImpl* pRendererImpl)
 
 	m_pGpuMemoryImpl = new GpuMemoryImpl();
 
-	pRendererImpl->CreateBuffer(*m_pGpuMemoryImpl, Renderer::Vertex, this->size() * sizeof(ValueType));
+	pRendererImpl->CreateBuffer(*m_pGpuMemoryImpl, Renderer::Vertex, this->size() * getValueTypeSize());
 }
 
 template<class ValueType>
@@ -34,7 +35,7 @@ void DrawVertexArray<ValueType>::updateGpuMemory(RendererImpl* pRendererImpl)
 		exit(1);
 	}
 
-	std::memcpy(mappedData, this->data(), this->size() * sizeof(ValueType));
+	std::memcpy(mappedData, this->data(), this->size() *getValueTypeSize());
 
 	// VK_MEMORY_PROPERTY_HOST_COHERENT_BIT ���^�Ȃ̂� flush �̕K�v�͂Ȃ����ꉞ
 	VkMappedMemoryRange memoryRange;

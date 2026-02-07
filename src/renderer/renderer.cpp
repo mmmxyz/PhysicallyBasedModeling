@@ -107,6 +107,8 @@ void Renderer::CreateGraphicsPipeline(Renderer::GraphicsPipelineParams& graphics
 
 	const int descriptorSetCounter = graphicsPipelineParams.descriptorSetParams.size();
 
+	m_pImpl->descriptorSetImplMap[graphicsPipelineParams.name].resize(descriptorSetCounter);
+
 	pGraphicsPipelineImpl->pDescriptorSetLayout.resize(descriptorSetCounter);
 	for (int i = 0; i < descriptorSetCounter; i++) {
 		VkDescriptorSetLayoutBinding layoutBindings[256] = {};
@@ -301,10 +303,10 @@ void Renderer::CreateRenderPass(Renderer::RenderPassParams& renderPassParams)
 	VkSubpassDescription subpasses[64];
 
 	for (int i = 0; i < renderPassParams.subpasses.size(); i++) {
-		auto& subpassParam		 = renderPassParams.subpasses[i];
-		auto& subpassDesc		 = subpasses[i];
+		auto& subpassParam = renderPassParams.subpasses[i];
+		auto& subpassDesc  = subpasses[i];
 
-		subpassDesc = VkSubpassDescription{};
+		subpassDesc			 = VkSubpassDescription {};
 		subpassDesc.colorAttachmentCount = subpassParam.colorAttachments.size();
 		subpassDesc.pColorAttachments	 = static_cast<VkAttachmentReference*>(attatchmentRefs[i]);
 
@@ -487,10 +489,10 @@ void Renderer::Initialize(InitializeParams& initializeParams)
 
 	VkApplicationInfo appInfo {};
 	appInfo.sType		   = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-	appInfo.pNext		   = nullptr;			       //リンクの次の構造体はなし
+	appInfo.pNext		   = nullptr;			//リンクの次の構造体はなし
 	appInfo.pApplicationName   = "Vulkan Application Test"; //アプリケーションの名前を格納したヌル終端文字列へのポインタ，ちなみにASCII文字における0の値は，nullでなくてnulらしい
-	appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);	       //アプリケーションのバージョン，
-	appInfo.pEngineName	   = nullptr;			       //使用するエンジンの名前
+	appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);	//アプリケーションのバージョン，
+	appInfo.pEngineName	   = nullptr;			//使用するエンジンの名前
 	appInfo.engineVersion	   = VK_MAKE_VERSION(1, 0, 0);
 	appInfo.apiVersion	   = VK_API_VERSION_1_2; //アプリケーションが期待するvulkan apiのバージョン，実行に必要な最小のバージョンを設定する
 
@@ -1190,14 +1192,22 @@ void Renderer::Draw(DrawParams& drawParams)
 	}
 
 	VkDeviceSize vertexBufferOffsets = 0;
-	vkCmdBindVertexBuffers(m_pImpl->CB[gpuIndex], 0, 1, &drawParams.vertexArray[0]->buffer, &vertexBufferOffsets);
+	vkCmdBindVertexBuffers(m_pImpl->CB[gpuIndex], 0, 1, &drawParams.pVertexArray->buffer, &vertexBufferOffsets);
+
+	if (drawParams.pIndexArray != nullptr) {
+		vkCmdBindIndexBuffer(m_pImpl->CB[gpuIndex], drawParams.pIndexArray->buffer, 0, VkIndexType::VK_INDEX_TYPE_UINT32);
+	}
 
 	// 動的に決める state を設定
 	vkCmdSetViewport(m_pImpl->CB[gpuIndex], 0, 1, &m_pImpl->viewport);
 	vkCmdSetScissor(m_pImpl->CB[gpuIndex], 0, 1, &m_pImpl->scissor);
 
 	// draw
-	vkCmdDraw(m_pImpl->CB[gpuIndex], 3, 1, 0, 0);
+	if (drawParams.pIndexArray != nullptr) {
+		vkCmdDrawIndexed(m_pImpl->CB[gpuIndex], drawParams.count, drawParams.instanceCount, 0, 0, 0);
+	} else {
+		vkCmdDraw(m_pImpl->CB[gpuIndex], drawParams.count, drawParams.instanceCount, 0, 0);
+	}
 
 	vkCmdEndRenderPass(m_pImpl->CB[gpuIndex]);
 	result = vkEndCommandBuffer(m_pImpl->CB[gpuIndex]);
