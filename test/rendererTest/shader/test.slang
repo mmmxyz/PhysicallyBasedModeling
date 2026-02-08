@@ -15,10 +15,16 @@ struct VSInput {
 struct VSOutput {
 	float4 position : SV_Position;
 	[[vk::location(0)]] float2 uv;
+	[[vk::location(1)]] float4 color;
 };
 
 struct PersMatrixData {
 	float4x4 persMat;
+};
+
+struct LightData {
+	float3 lightPos;
+	float3 color;
 };
 
 struct UboData {
@@ -27,6 +33,7 @@ struct UboData {
 };
 
 [[vk::binding(0, 0)]] ConstantBuffer<PersMatrixData> persMatrix;
+[[vk::binding(1, 0)]] ConstantBuffer<LightData> lightData;
 [[vk::binding(0, 1)]] ConstantBuffer<UboData> uboData;
 
 float3x3 outerProdut(float3 a, float3 b)
@@ -64,14 +71,17 @@ float3x3 vectorToRotation(float3 vec)
 
 }
 
+
 [[shader("vertex")]] VSOutput vertexMain(VSInput input)
 {
 	VSOutput output;
 
 	float3 pos = input.position;
-	pos = mul( vectorToRotation(float3(1.0, 1.0, 0.0) * uboData.time) , pos );
+	pos = mul( vectorToRotation(float3(0.0, 1.0, 0.0) * uboData.time) , pos );
+	pos.z -= 2;
+	pos.y -= 1.0;
 
-	pos.z -= 4;
+
 
 
 	float4 pos4 = float4(pos, 1.0);
@@ -79,15 +89,21 @@ float3x3 vectorToRotation(float3 vec)
 
 	output.position = pos4;
 
-	output.uv = input.uv;
+	output.uv = input.uv ;
+
+
+	float lightDistance = length(lightData.lightPos - pos);
+	output.color = input.color * max( dot(lightData.lightPos, input.normal), 0.0) * (10.0 / (lightDistance * lightDistance)) + float4(0.1, 0.1, 0.1, 0.0);
+	output.color.a = 1.0;
+
 
 	return output;
 }
 
-////
-
 struct FSInput {
+	float4 position : SV_Position;
 	[[vk::location(0)]] float2 uv;
+	[[vk::location(1)]] float4 color;
 };
 
 struct FSOutput {
@@ -100,6 +116,7 @@ struct FSOutput {
 [[shader("fragment")]] FSOutput fragmentMain(FSInput input)
 {
 	FSOutput output;
-	output.color = testTexture.Sample(testSampler, input.uv);
+	float2 uv = input.uv ;
+	output.color = testTexture.Sample(testSampler, uv) * input.color;
 	return output;
 }

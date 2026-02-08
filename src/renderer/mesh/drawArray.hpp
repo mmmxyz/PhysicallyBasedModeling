@@ -1,7 +1,7 @@
 #pragma once
 
 #include "src/renderer/renderer.hpp"
-#include "src/utils/geometry/array.hpp"
+#include "src/utils/memory/array.hpp"
 
 class GpuMemoryImpl;
 class VertexInputStateImpl;

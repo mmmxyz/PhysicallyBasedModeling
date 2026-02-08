@@ -5,6 +5,7 @@
 #include <GLFW/glfw3.h>
 
 #include <unordered_map>
+#include <cassert>
 
 #include "src/renderer/mesh/drawArray.hpp"
 
@@ -53,7 +54,6 @@ public:
 		VkPipeline graphicsPipeline;
 		VkPipelineLayout pipelineLayout;
 		std::vector<VkDescriptorSetLayoutImpl> pDescriptorSetLayout;
-		VkFramebuffer * pFrameBuffer;
 		std::string renderPassName;
 	};
 
@@ -71,12 +71,35 @@ public:
 		}
 	};
 
+
 	class RenderPassImpl
 	{
 	public:
 		std::string name;
-		VkRenderPass renderPass;		
+		VkRenderPass renderPass;
+
+		VkFramebuffer* pFrameBuffer;
+
+		//// フレームバッファ以外のバッファ
+		//bool hasDepthTexture = false;
+		//GpuTextureMemoryImpl depthTextureMemoryImpl; //必要なら深度テクスチャ
+
+		int attatchmentIndexTable[(int)Renderer::AttatchmentLabel::Count] = { -1 }; // i 番目の attatchment のラベル
+		GpuTextureMemoryImpl attatchmentTextureMemoryImpls[(int)Renderer::AttatchmentLabel::Count]; // ラベルの texture
 	};
+
+	static int GetAttatchmentIndex(Renderer::AttatchmentLabel label, RendererImpl::RenderPassImpl* pRenderPassImpl)
+	{
+		for (int i = 0; i < (int)Renderer::AttatchmentLabel::Count; i++)
+		{
+			if(pRenderPassImpl->attatchmentIndexTable[i] == (int)label)
+			{
+				return i;
+			}
+		}
+
+		return -1;
+	}
 
 	std::unordered_map<std::string, GraphicsPipelineImpl*> graphicsPipelineMap;
 	std::unordered_map<std::string, VkShaderModule> shaderModuleMap;
@@ -173,7 +196,9 @@ public:
 		gpuTextureMemoryImpl.width = width;
 		gpuTextureMemoryImpl.height = height;
 
+
 		VkFormat vkFormat;
+		VkImageUsageFlags usageFlag = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 		switch (format)
 		{
 		case Renderer::ImageFormat::RGBA8_SNORM:
@@ -181,9 +206,14 @@ public:
 			break;
 		case Renderer::DEPTH16_UNORM:
 			vkFormat = VK_FORMAT_D16_UNORM;
+			usageFlag |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+			break;
+		case Renderer::DEPTH32_SFLOAT:
+			vkFormat = VK_FORMAT_D32_SFLOAT;
+			usageFlag |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
 			break;
 		default:
-			vkFormat = VK_FORMAT_R8G8B8A8_UNORM;
+			assert(false, "unsupported ImageFormat");
 			break;
 		}
 
@@ -199,7 +229,7 @@ public:
 		imageCreateInfo.format = vkFormat;
 		imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
 		imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		imageCreateInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+		imageCreateInfo.usage = usageFlag;
 		imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
 		imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
@@ -238,8 +268,12 @@ public:
 			vkFormat = VK_FORMAT_D16_UNORM;
 			aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
 			break;
+		case Renderer::DEPTH32_SFLOAT:
+			vkFormat = VK_FORMAT_D32_SFLOAT;
+			aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+			break;
 		default:
-			vkFormat = VK_FORMAT_R8G8B8A8_UNORM;
+			assert(false, "unsupported ImageFormat");
 			break;
 		}
 

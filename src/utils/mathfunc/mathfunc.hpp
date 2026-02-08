@@ -99,6 +99,8 @@ const vec2<T> operator+(const vec2<T> a, const vec2<T> b);
 template <class T>
 const vec2<T> operator-(const vec2<T> a, const vec2<T> b);
 template <class T>
+const vec2<T> operator*(const vec2<T> a, const vec2<T> b);
+template <class T>
 const vec2<T> operator-(const vec2<T> a);
 template <class T>
 const vec2<T> operator*(const T a, const vec2<T> b);
@@ -152,12 +154,19 @@ public:
 	{
 		return vec3<T>(0.0, 0.0, 0.0);
 	}
+
+	inline static T STP(const vec3<T>& a, const vec3<T>& b, const vec3<T>& c)
+	{
+		return a.dot(b.cross(c));
+	}
 };
 
 template <class T>
 const vec3<T> operator+(const vec3<T> a, const vec3<T> b);
 template <class T>
 const vec3<T> operator-(const vec3<T> a, const vec3<T> b);
+template <class T>
+const vec3<T> operator*(const vec3<T> a, const vec3<T> b);
 template <class T>
 const vec3<T> operator-(const vec3<T> a);
 template <class T>
@@ -214,6 +223,8 @@ template <class T>
 const vec4<T> operator+(const vec4<T> a, const vec4<T> b);
 template <class T>
 const vec4<T> operator-(const vec4<T> a, const vec4<T> b);
+template <class T>
+const vec4<T> operator*(const vec4<T> a, const vec4<T> b);
 template <class T>
 const vec4<T> operator-(const vec4<T> a);
 template <class T>
@@ -638,6 +649,13 @@ inline const vec2<T> operator-(const vec2<T> a, const vec2<T> b)
 		a.y - b.y);
 }
 template <class T>
+inline const vec2<T> operator*(const vec2<T> a, const vec2<T> b)
+{
+	return vec2<T>(
+		a.x * b.x,
+		a.y * b.y);
+}
+template <class T>
 inline const vec2<T> operator-(const vec2<T> a)
 {
 	return vec2<T>(
@@ -843,6 +861,14 @@ inline const vec3<T> operator-(const vec3<T> a, const vec3<T> b)
 		a.z - b.z);
 }
 template <class T>
+inline const vec3<T> operator*(const vec3<T> a, const vec3<T> b)
+{
+	return vec3<T>(
+		a.x * b.x,
+		a.y * b.y,
+		a.z * b.z);
+}
+template <class T>
 inline const vec3<T> operator-(const vec3<T> a)
 {
 	return vec3<T>(
@@ -1024,6 +1050,15 @@ inline const vec4<T> operator-(const vec4<T> a, const vec4<T> b)
 		a.y - b.y,
 		a.z - b.z,
 		a.w - b.w);
+}
+template <class T>
+inline const vec4<T> operator*(const vec4<T> a, const vec4<T> b)
+{
+	return vec4<T>(
+		a.x * b.x,
+		a.y * b.y,
+		a.z * b.z,
+		a.w * b.w);
 }
 template <class T>
 inline const vec4<T> operator-(const vec4<T> a)

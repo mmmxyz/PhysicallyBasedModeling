@@ -7,6 +7,7 @@
 #include <array>
 #include <fstream>
 #include <cstring>
+#include <cassert>
 #include "src/utils/logger/logger.hpp"
 
 void Renderer::CreateGraphicsPipeline(Renderer::GraphicsPipelineParams& graphicsPipelineParams)
@@ -176,7 +177,7 @@ void Renderer::CreateGraphicsPipeline(Renderer::GraphicsPipelineParams& graphics
 	PRSC.rasterizerDiscardEnable = VK_FALSE;		    //
 	PRSC.polygonMode = VK_POLYGON_MODE_FILL; // line だけ， point だけ描画したいなど
 	PRSC.lineWidth = 1.0f;		    //
-	PRSC.cullMode = VK_CULL_MODE_BACK_BIT;
+	PRSC.cullMode = VK_CULL_MODE_NONE;
 	PRSC.frontFace = VK_FRONT_FACE_CLOCKWISE;
 	// fragment slope に応じて depth 値を修正できる
 	PRSC.depthBiasEnable = VK_FALSE; // 無効（Zファイティング抑制に使われる）
@@ -198,26 +199,29 @@ void Renderer::CreateGraphicsPipeline(Renderer::GraphicsPipelineParams& graphics
 	PDSSC.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
 	PDSSC.depthBoundsTestEnable = VK_TRUE;
 	PDSSC.depthCompareOp = VK_COMPARE_OP_LESS;
+	PDSSC.depthTestEnable = VK_TRUE;
 	PDSSC.depthWriteEnable = VK_TRUE;
 	PDSSC.depthBoundsTestEnable = VK_FALSE; // 境界テストはOFF
 	PDSSC.stencilTestEnable = VK_FALSE;
 
-	VkPipelineColorBlendAttachmentState PCBAS = {};
-	PCBAS.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-	PCBAS.blendEnable = VK_TRUE;
-	PCBAS.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-	PCBAS.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-	PCBAS.colorBlendOp = VK_BLEND_OP_ADD;
-	PCBAS.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-	PCBAS.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-	PCBAS.alphaBlendOp = VK_BLEND_OP_ADD;
+	VkPipelineColorBlendAttachmentState PCBAS[2];
+	int PCBASCount = 1;
+	PCBAS[0] = {};
+	PCBAS[0].colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+	PCBAS[0].blendEnable = VK_TRUE;
+	PCBAS[0].dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+	PCBAS[0].srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+	PCBAS[0].colorBlendOp = VK_BLEND_OP_ADD;
+	PCBAS[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+	PCBAS[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+	PCBAS[0].alphaBlendOp = VK_BLEND_OP_ADD;
 
 	VkPipelineColorBlendStateCreateInfo PCBSC = {};
 	PCBSC.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
 	PCBSC.pNext = nullptr;
 	PCBSC.logicOpEnable = VK_FALSE;
-	PCBSC.attachmentCount = 1;
-	PCBSC.pAttachments = &PCBAS;
+	PCBSC.attachmentCount = PCBASCount;
+	PCBSC.pAttachments = PCBAS;
 
 	VkPushConstantRange pushConstantRange;
 	pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
@@ -269,7 +273,7 @@ void Renderer::CreateGraphicsPipeline(Renderer::GraphicsPipelineParams& graphics
 	GPCI.layout = pGraphicsPipelineImpl->pipelineLayout;
 
 	GPCI.renderPass = pRenderPass->renderPass;
-	GPCI.subpass = 0; // index = 0;
+	GPCI.subpass = graphicsPipelineParams.subpassIndex;
 
 	GPCI.basePipelineHandle = VK_NULL_HANDLE; // 不使用
 	GPCI.basePipelineIndex = -1;
@@ -278,25 +282,35 @@ void Renderer::CreateGraphicsPipeline(Renderer::GraphicsPipelineParams& graphics
 	if (result != VK_SUCCESS) {
 		exit(1);
 	}
+}
 
-	// framebuffer 作成
-
-	pGraphicsPipelineImpl->pFrameBuffer = new VkFramebuffer[m_pImpl->swapChainImageCount];
-	for (int i = 0; i < m_pImpl->swapChainImageCount; i++) {
-		VkFramebufferCreateInfo FCI = {};
-		FCI.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-		FCI.flags = 0;
-		FCI.renderPass = pRenderPass->renderPass;
-		FCI.attachmentCount = 1;
-		FCI.pAttachments = &m_pImpl->swapChainImageViews[i];
-		FCI.width = m_pImpl->surfaceCapabilities.currentExtent.width;
-		FCI.height = m_pImpl->surfaceCapabilities.currentExtent.height;
-		FCI.layers = 1;
-
-		result = vkCreateFramebuffer(m_pImpl->logicalDevice, &FCI, nullptr, &pGraphicsPipelineImpl->pFrameBuffer[i]);
-		if (result != VK_SUCCESS) {
-			exit(1);
-		}
+VkImageLayout ConvertImageLayout(Renderer::ImageLayout imageLayout)
+{
+	switch (imageLayout)
+	{
+	case Renderer::ImageLayout::Undefined:
+		return VK_IMAGE_LAYOUT_UNDEFINED;
+	case Renderer::ImageLayout::General:
+		return VK_IMAGE_LAYOUT_GENERAL;
+	case Renderer::ImageLayout::ColorAttachmentOptimal:
+		return VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	case Renderer::ImageLayout::DepthStencilAttachmentOptimal:
+		return VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+	case Renderer::ImageLayout::ShaderReadOnlyOptimal:
+		return VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	case Renderer::ImageLayout::TransferSrcOptimal:
+		return VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+	case Renderer::ImageLayout::TransferDstOptimal:
+		return VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+	case Renderer::ImageLayout::PreInitialized:
+		return VK_IMAGE_LAYOUT_PREINITIALIZED;
+	case Renderer::ImageLayout::DepthReadOnlyStencilAttachmentOptimal:
+		return VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_STENCIL_ATTACHMENT_OPTIMAL;
+	case Renderer::ImageLayout::PresentSrcKHR:
+		return VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	default:
+		assert(false, "unsupported ImageLayout");
+		return VK_IMAGE_LAYOUT_UNDEFINED;
 	}
 }
 
@@ -306,6 +320,11 @@ void Renderer::CreateRenderPass(Renderer::RenderPassParams& renderPassParams)
 
 	auto* pRenderPassImpl = new RendererImpl::RenderPassImpl();
 	pRenderPassImpl->name = renderPassParams.name;
+
+	for (int i = 0; i < Renderer::AttatchmentLabel::Count; i++)
+	{
+		pRenderPassImpl->attatchmentIndexTable[i] = -1;
+	}
 
 	VkAttachmentDescription attachments[128] = {};
 	for (int i = 0; i < renderPassParams.attachments.size(); i++) {
@@ -322,17 +341,62 @@ void Renderer::CreateRenderPass(Renderer::RenderPassParams& renderPassParams)
 		case ImageFormat::DEPTH16_UNORM:
 			attachment.format = VkFormat::VK_FORMAT_D16_UNORM;
 			break;
+		case ImageFormat::DEPTH32_SFLOAT:
+			attachment.format = VkFormat::VK_FORMAT_D32_SFLOAT;
+			break;
+		default:
+			assert(false, "unsupported format");
+			break;
 		}
 		attachment.samples = VK_SAMPLE_COUNT_1_BIT; // multi sample しない
-		attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-		attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+		attachment.loadOp = attachmentParams.clear ? VK_ATTACHMENT_LOAD_OP_CLEAR : VK_ATTACHMENT_LOAD_OP_LOAD;
+		attachment.storeOp = attachmentParams.store ? VK_ATTACHMENT_STORE_OP_STORE : VK_ATTACHMENT_STORE_OP_DONT_CARE;
 		attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 		attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		attachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+		attachment.initialLayout = ConvertImageLayout(attachmentParams.initialLayout);
+		attachment.finalLayout = ConvertImageLayout(attachmentParams.finalLayout);
+
+		if (renderPassParams.isClearRenderPass)
+		{
+			if (attachmentParams.attachmentLabel != AttatchmentLabel::UseSwapChainAttachment)
+			{
+				if (pRenderPassImpl->attatchmentIndexTable[i] != -1)
+				{
+					assert(false, "only one attachment can set isRequireBuffer to true");
+				}
+				auto& clearReferenceRenderPass = m_pImpl->renderPassImpl[renderPassParams.clearRenderPassName];
+				pRenderPassImpl->attatchmentIndexTable[i] = attachmentParams.attachmentLabel;
+				pRenderPassImpl->attatchmentTextureMemoryImpls[attachmentParams.attachmentLabel] = clearReferenceRenderPass->attatchmentTextureMemoryImpls[attachmentParams.attachmentLabel];
+			}
+			else
+			{
+				pRenderPassImpl->attatchmentIndexTable[i] = AttatchmentLabel::UseSwapChainAttachment;
+			}
+		}
+		else
+		{
+			if (attachmentParams.attachmentLabel != AttatchmentLabel::UseSwapChainAttachment)
+			{
+				if (pRenderPassImpl->attatchmentIndexTable[i] != -1)
+				{
+					assert(false, "only one attachment can set isRequireBuffer to true");
+				}
+				pRenderPassImpl->attatchmentIndexTable[i] = attachmentParams.attachmentLabel;
+
+				auto& attatchmentTextureMemoryImpl = pRenderPassImpl->attatchmentTextureMemoryImpls[attachmentParams.attachmentLabel];
+				m_pImpl->CreateImage(m_pImpl->surfaceCapabilities.currentExtent.width, m_pImpl->surfaceCapabilities.currentExtent.height, attatchmentTextureMemoryImpl, attachmentParams.format);
+				m_pImpl->CreateImageView(attatchmentTextureMemoryImpl, attachmentParams.format);
+			}
+			else
+			{
+				pRenderPassImpl->attatchmentIndexTable[i] = AttatchmentLabel::UseSwapChainAttachment;
+			}
+		}
 	}
 
 	VkAttachmentReference attatchmentRefs[64][64];
+	VkAttachmentReference attatchmentDepthRefs[64];
+	VkAttachmentReference inputAttatchmentRefs[64][64];
 	VkSubpassDescription subpasses[64];
 
 	for (int i = 0; i < renderPassParams.subpasses.size(); i++) {
@@ -341,14 +405,46 @@ void Renderer::CreateRenderPass(Renderer::RenderPassParams& renderPassParams)
 
 		subpassDesc = VkSubpassDescription{};
 		subpassDesc.colorAttachmentCount = subpassParam.colorAttachments.size();
-		subpassDesc.pColorAttachments = static_cast<VkAttachmentReference*>(attatchmentRefs[i]);
 
 		for (int j = 0; j < subpassParam.colorAttachments.size(); j++) {
 			attatchmentRefs[i][j].attachment = subpassParam.colorAttachments[j];
 			attatchmentRefs[i][j].layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 		}
+		subpassDesc.pColorAttachments = static_cast<VkAttachmentReference*>(attatchmentRefs[i]);
+
+		if (subpassParam.depthAttathment >= 0) {
+			attatchmentDepthRefs[i].attachment = subpassParam.depthAttathment;
+			attatchmentDepthRefs[i].layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+			subpassDesc.pDepthStencilAttachment = &attatchmentDepthRefs[i];
+		}
+		else
+		{
+			subpassDesc.pDepthStencilAttachment = nullptr;
+		}
+
+		for (int j = 0; j < subpassParam.inputAttachments.size(); j++) {
+			inputAttatchmentRefs[i][j].attachment = subpassParam.inputAttachments[j];
+			inputAttatchmentRefs[i][j].layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		}
 
 		subpassDesc.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+
+		subpassDesc.inputAttachmentCount = subpassParam.inputAttachments.size();
+		subpassDesc.pInputAttachments = static_cast<VkAttachmentReference*>(inputAttatchmentRefs[i]);
+	}
+
+	VkSubpassDependency dependencies[64];
+	for (int i = 0; i < renderPassParams.dependencies.size(); i++) {
+		auto& dependencyParam = renderPassParams.dependencies[i];
+		auto& dependency = dependencies[i];
+		dependency = VkSubpassDependency{};
+		dependency.srcSubpass = (dependencyParam.srcSubpass == -1) ? VK_SUBPASS_EXTERNAL : dependencyParam.srcSubpass;
+		dependency.dstSubpass = (dependencyParam.dstSubpass == -1) ? VK_SUBPASS_EXTERNAL : dependencyParam.dstSubpass;
+		dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+		dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+		dependency.srcAccessMask = 0;
+		dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+		dependency.dependencyFlags = 0;
 	}
 
 	// render pass
@@ -359,9 +455,68 @@ void Renderer::CreateRenderPass(Renderer::RenderPassParams& renderPassParams)
 	RPCI.subpassCount = renderPassParams.subpasses.size();
 	RPCI.pSubpasses = subpasses;
 
+	RPCI.dependencyCount = renderPassParams.dependencies.size();
+	RPCI.pDependencies = dependencies;
+
 	VkResult result = vkCreateRenderPass(m_pImpl->logicalDevice, &RPCI, nullptr, &pRenderPassImpl->renderPass);
 	if (result != VK_SUCCESS) {
 		exit(1);
+	}
+
+	pRenderPassImpl->pFrameBuffer = new VkFramebuffer[m_pImpl->swapChainImageCount];
+	for (int i = 0; i < m_pImpl->swapChainImageCount; i++) {
+
+		VkImageView attachments[16];
+		int attatmentCount = renderPassParams.attachments.size();
+
+		if (renderPassParams.isClearRenderPass)
+		{
+			for (int j = 0; j < renderPassParams.attachments.size(); j++)
+			{
+				if (pRenderPassImpl->attatchmentIndexTable[j] == AttatchmentLabel::UseSwapChainAttachment)
+				{
+					attachments[j] = m_pImpl->swapChainImageViews[i];
+					continue;
+				}
+				else
+				{
+					auto& clearReferenceRenderPass = m_pImpl->renderPassImpl[renderPassParams.clearRenderPassName];
+					assert(clearReferenceRenderPass->attatchmentIndexTable[j] != -1, "only one attachment can set isRequireBuffer to true");
+					attachments[j] = clearReferenceRenderPass->attatchmentTextureMemoryImpls[pRenderPassImpl->attatchmentIndexTable[j]].imageView;
+				}
+			}
+		}
+		else
+		{
+			for (int j = 0; j < renderPassParams.attachments.size(); j++)
+			{
+				if (pRenderPassImpl->attatchmentIndexTable[j] == AttatchmentLabel::UseSwapChainAttachment)
+				{
+					attachments[j] = m_pImpl->swapChainImageViews[i];
+					continue;
+				}
+				else
+				{
+					assert(pRenderPassImpl->attatchmentIndexTable[j] != -1, "only one attachment can set isRequireBuffer to true");
+					attachments[j] = pRenderPassImpl->attatchmentTextureMemoryImpls[pRenderPassImpl->attatchmentIndexTable[j]].imageView;
+				}
+			}
+		}
+
+		VkFramebufferCreateInfo FCI = {};
+		FCI.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+		FCI.flags = 0;
+		FCI.renderPass = pRenderPassImpl->renderPass;
+		FCI.attachmentCount = attatmentCount;
+		FCI.pAttachments = attachments;
+		FCI.width = m_pImpl->surfaceCapabilities.currentExtent.width;
+		FCI.height = m_pImpl->surfaceCapabilities.currentExtent.height;
+		FCI.layers = 1;
+
+		result = vkCreateFramebuffer(m_pImpl->logicalDevice, &FCI, nullptr, &pRenderPassImpl->pFrameBuffer[i]);
+		if (result != VK_SUCCESS) {
+			exit(1);
+		}
 	}
 
 	m_pImpl->renderPassImpl[renderPassParams.name] = pRenderPassImpl;
@@ -1210,6 +1365,22 @@ bool Renderer::DrawCondition()
 	return !glfwWindowShouldClose(m_pImpl->window);
 }
 
+void Renderer::UpdatePushConstant(UpdatePushConstantParams& pushConstantParams)
+{
+	uint32_t gpuIndex = (counter) % 2;
+
+	auto* pGraphicsPipelineImpl = m_pImpl->graphicsPipelineMap[pushConstantParams.graphicsPipelineName];
+
+	VkShaderStageFlags shaderStageBit = 0;
+	if (pushConstantParams.shaderStage & ShaderStage::VertexBit)
+		shaderStageBit |= VK_SHADER_STAGE_VERTEX_BIT;
+	if (pushConstantParams.shaderStage & ShaderStage::FragmentBit)
+		shaderStageBit |= VK_SHADER_STAGE_FRAGMENT_BIT;
+
+	vkCmdPushConstants(m_pImpl->CB[gpuIndex], pGraphicsPipelineImpl->pipelineLayout, shaderStageBit, 0, pushConstantParams.size, pushConstantParams.pData);
+}
+
+
 void Renderer::DrawStart()
 {
 	VkResult result;
@@ -1229,7 +1400,11 @@ void Renderer::DrawStart()
 	}
 
 	// Commandbuffer
-	vkResetCommandBuffer(m_pImpl->CB[gpuIndex], 0);
+	result = vkResetCommandBuffer(m_pImpl->CB[gpuIndex], 0);
+	if (result != VK_SUCCESS) {
+		std::cout << "fail to reset command buffer!!!" << std::endl;
+		exit(1);
+	}
 
 	// コマンドバッファにコマンドを記録
 	// コマンドバッファーへのアクセスは同期される必要がある
@@ -1249,25 +1424,10 @@ void Renderer::DrawStart()
 	}
 }
 
-void Renderer::UpdatePushConstant(UpdatePushConstantParams& pushConstantParams)
+void Renderer::BeginRenderPass(BeginRenderPassParams& beginRenderPassParams)
 {
-	uint32_t gpuIndex = (counter) % 2;
-
-	auto* pGraphicsPipelineImpl = m_pImpl->graphicsPipelineMap[pushConstantParams.graphicsPipelineName];
-
-	VkShaderStageFlags shaderStageBit = 0;
-	if (pushConstantParams.shaderStage & ShaderStage::VertexBit)
-		shaderStageBit |= VK_SHADER_STAGE_VERTEX_BIT;
-	if (pushConstantParams.shaderStage & ShaderStage::FragmentBit)
-		shaderStageBit |= VK_SHADER_STAGE_FRAGMENT_BIT;
-
-	vkCmdPushConstants(m_pImpl->CB[gpuIndex], pGraphicsPipelineImpl->pipelineLayout, shaderStageBit, 0, pushConstantParams.size, pushConstantParams.pData);
-}
-
-void Renderer::Draw(DrawParams& drawParams)
-{
-	auto* pGraphicsPipelineImpl = m_pImpl->graphicsPipelineMap[drawParams.graphicsPipelineName];
-	auto& renderPass = m_pImpl->renderPassImpl[pGraphicsPipelineImpl->renderPassName]->renderPass;
+	auto& renderPassImpl = m_pImpl->renderPassImpl[beginRenderPassParams.renderPassName];
+	auto& renderPass = renderPassImpl->renderPass;
 
 	VkResult result;
 	uint32_t gpuIndex = (counter) % 2;
@@ -1275,15 +1435,28 @@ void Renderer::Draw(DrawParams& drawParams)
 	VkRenderPassBeginInfo RPBI = {};
 	RPBI.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 	RPBI.renderPass = renderPass;
-	RPBI.framebuffer = pGraphicsPipelineImpl->pFrameBuffer[frameBufferIndex];
+	RPBI.framebuffer = renderPassImpl->pFrameBuffer[frameBufferIndex];
 	RPBI.renderArea.offset = { 0, 0 };
 	RPBI.renderArea.extent = m_pImpl->swapChainExtent;
-	VkClearValue clearColor;
-	clearColor.color = { 0.0, 0.0, 0.0, 1.0 };
-	RPBI.clearValueCount = 1;
-	RPBI.pClearValues = &clearColor;
+	VkClearValue clearColor[2];
+	clearColor[0].color = { 0.0, 0.0, 0.0, 1.0 };
+	clearColor[1].depthStencil = { 1.0f, 0 };
+	RPBI.clearValueCount = (RendererImpl::GetAttatchmentIndex(Renderer::DepthAttachment, renderPassImpl) != -1) ? 2 : 1;
+	RPBI.pClearValues = clearColor;
 	// renderpass 開始を記録
 	vkCmdBeginRenderPass(m_pImpl->CB[gpuIndex], &RPBI, VK_SUBPASS_CONTENTS_INLINE); // renderpass command は一次コマンドで実行される
+}
+
+void Renderer::Draw(DrawParams& drawParams)
+{
+	auto* pGraphicsPipelineImpl = m_pImpl->graphicsPipelineMap[drawParams.graphicsPipelineName];
+	auto& renderPassImpl = m_pImpl->renderPassImpl[pGraphicsPipelineImpl->renderPassName];
+	auto& renderPass = renderPassImpl->renderPass;
+
+	VkResult result;
+	uint32_t gpuIndex = (counter) % 2;
+
+
 
 	// graphicPipeline を bind
 	vkCmdBindPipeline(m_pImpl->CB[gpuIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, pGraphicsPipelineImpl->graphicsPipeline);
@@ -1311,16 +1484,23 @@ void Renderer::Draw(DrawParams& drawParams)
 		vkCmdDraw(m_pImpl->CB[gpuIndex], drawParams.count, drawParams.instanceCount, 0, 0);
 	}
 
+
+}
+
+void Renderer::EndRenderPass()
+{
+	uint32_t gpuIndex = (counter) % 2;
 	vkCmdEndRenderPass(m_pImpl->CB[gpuIndex]);
-	result = vkEndCommandBuffer(m_pImpl->CB[gpuIndex]);
-	if (result != VK_SUCCESS) {
-		exit(1);
-	}
 }
 
 void Renderer::DrawEnd()
 {
 	uint32_t gpuIndex = (counter) % 2;
+
+	VkResult result = vkEndCommandBuffer(m_pImpl->CB[gpuIndex]);
+	if (result != VK_SUCCESS) {
+		exit(1);
+	}
 
 	// submit
 	VkPipelineStageFlags waitStages = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };

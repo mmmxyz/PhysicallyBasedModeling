@@ -23,8 +23,8 @@ inline fmat4 makeProjectionMatrixVk(const float& near, const float& far, const f
 	fmat4 ret = fmat4::zero();
 	ret.cmp[0] = (2 * near) / (right - left);
 	ret.cmp[2] = (right + left) / (right - left);
-	ret.cmp[5] = (2 * near) / (top - bottom);
-	ret.cmp[6] = (top + bottom) / (top - bottom);
+	ret.cmp[5] = -(2 * near) / (top - bottom);
+	ret.cmp[6] = -(top + bottom) / (top - bottom);
 	ret.cmp[10] = -(far) / (far - near);
 	ret.cmp[11] = -(near * far) / (far - near);
 	ret.cmp[14] = -1.0f;

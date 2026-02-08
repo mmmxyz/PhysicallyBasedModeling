@@ -2,7 +2,7 @@
 
 #include <vector>
 #include "src/utils/mathfunc/mathfunc.hpp"
-#include "src/utils/geometry/array.hpp"
+#include "src/utils/memory/array.hpp"
 
 class RendererImpl;
 
@@ -85,9 +85,23 @@ public:
 		SameAsSwapChain,
 		RGBA8_SNORM,
 		DEPTH16_UNORM,
+		DEPTH32_SFLOAT,
 	};
 
 
+	enum ImageLayout {
+		Undefined,
+		General,
+		ColorAttachmentOptimal,
+		DepthStencilAttachmentOptimal,
+		ShaderReadOnlyOptimal,
+		TransferSrcOptimal,
+		TransferDstOptimal,
+		PreInitialized,
+		DepthReadOnlyStencilAttachmentOptimal,
+		PresentSrcKHR,
+		// TODO ��
+	};
 
 	GpuBuffer CreateGpuBuffer(uint32_t size, BufferCreateUsage usage);
 	GpuTexture CreateGpuTexture(uint32_t width, uint32_t height, ImageFormat format);
@@ -154,23 +168,46 @@ public:
 		ShaderStageType stageType;
 	};
 
+	enum AttatchmentLabel {
+		UseSwapChainAttachment,
+		ColorAttachment,
+		DepthAttachment,
+		NormalAttachment,
+		PositionAttachment,
+		AlbedoAttachment,
+		MetallicRoughnessAttachment,
+		Count,
+	};
+
 	struct AttachmentParams {
 		ImageFormat format = Undef;
 		bool clear = true;
 		bool store = true;
-		// initialLayout
-		// finalLayout
+		ImageLayout initialLayout = Undefined;
+		ImageLayout finalLayout = ColorAttachmentOptimal;
+
+		AttatchmentLabel attachmentLabel = ColorAttachment;
 	};
 
 	struct SubpassParams {
-		std::vector<int> colorAttachments;
+		std::vector<int> colorAttachments; // 特定パス内のindex
+		std::vector<int> inputAttachments; // 特定パス内のindex
 		int depthAttathment;
+	};
+
+	struct SubpassDependencyParams {
+		int srcSubpass = -1; // 特定パス内のindex
+		int dstSubpass = -1;
 	};
 
 	struct RenderPassParams {
 		std::string name;
 		std::vector<AttachmentParams> attachments;
 		std::vector<SubpassParams> subpasses;
+		std::vector<SubpassDependencyParams> dependencies;
+
+		bool isClearRenderPass = false;
+		std::string clearRenderPassName = "";
 	};
 
 	struct GraphicsPipelineParams // GraphicsPipeline �Ɠ��l
@@ -179,6 +216,7 @@ public:
 		ValueArray<ShaderStageParams*> shaders;
 		std::string vertexLayoutName;
 		std::string renderPassName;
+		int32_t subpassIndex = 0;
 		ValueArray<DescriptorSetLayoutParams*> descriptorSetParams;
 		int pushConstantSize;
 		// TODO primitive, blend, rasterization, depthstencil state
@@ -234,8 +272,6 @@ public:
 		bool isDebugMode = false;
 		ivec2 windowSize = ivec2(800, 600);
 		std::string windowName;
-
-		GraphicsPipelineParams* pGraphicsPipelineParams;
 	};
 
 	void Initialize(InitializeParams& initializeParams);
@@ -261,16 +297,6 @@ public:
 		pDrawArray->updateGpuMemory(m_pImpl);
 	}
 
-	class DrawParams {
-	public:
-		GpuMemoryImpl* pVertexArray;
-		uint32_t count; // index or vertex 
-		uint32_t instanceCount;
-		GpuMemoryImpl* pIndexArray;
-		std::vector<DescriptorSetInterface> descriptorSetInterfaces;
-		std::string graphicsPipelineName;
-	};
-
 	class UpdatePushConstantParams
 	{
 	public:
@@ -282,11 +308,28 @@ public:
 
 	void UpdatePushConstant(UpdatePushConstantParams& pushConstantParams);
 
+	class BeginRenderPassParams {
+	public:
+		std::string renderPassName;
+	};
+
+	class DrawParams {
+	public:
+		GpuMemoryImpl* pVertexArray;
+		uint32_t count; // index or vertex 
+		uint32_t instanceCount;
+		GpuMemoryImpl* pIndexArray;
+		std::vector<DescriptorSetInterface> descriptorSetInterfaces;
+		std::string graphicsPipelineName;
+	};
+
 	uint32_t counter = 0;
 	uint32_t frameBufferIndex = 999;
 	bool DrawCondition();
 	void DrawStart();
+	void BeginRenderPass(BeginRenderPassParams& beginRenderPassParams);
 	void Draw(DrawParams& drawParams);
+	void EndRenderPass();
 	void DrawEnd();
 };
 
