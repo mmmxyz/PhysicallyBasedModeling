@@ -11,6 +11,7 @@
 
 #include "src/renderer/renderer.hpp"
 #include "src/renderer/gpuMemoryImpl.hpp"
+#include "src/utils/logger/assert.hpp"
 
 // TODO: 実装分離
 class RendererImpl
@@ -123,7 +124,7 @@ public:
 			usageFlag = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
 			break;
 		case Renderer::BufferCreateUsage::VertexIndex:
-			usageFlag = VK_BUFFER_USAGE_2_INDEX_BUFFER_BIT;
+			usageFlag = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
 			break;
 		case Renderer::BufferCreateUsage::Transfer:
 			usageFlag = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
@@ -213,7 +214,7 @@ public:
 			usageFlag |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
 			break;
 		default:
-			assert(false, "unsupported ImageFormat");
+			assert(false);
 			break;
 		}
 
@@ -273,7 +274,7 @@ public:
 			aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
 			break;
 		default:
-			assert(false, "unsupported ImageFormat");
+			assert(false);
 			break;
 		}
 

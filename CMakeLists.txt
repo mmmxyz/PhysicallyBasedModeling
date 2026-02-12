@@ -17,6 +17,8 @@ elseif(WIN32 AND MSVC)
 	set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /Zi /Od")
 endif()
 
+set(RESOURCE_DIR_PATH_CMAKE  "${CMAKE_CURRENT_SOURCE_DIR}\/resources")
+
 add_subdirectory(src/renderer)
 add_subdirectory(test/rendererTest)
 add_subdirectory(test/compileAll)

@@ -39,8 +39,8 @@ struct UboData {
 float3x3 outerProdut(float3 a, float3 b)
 {
 	return float3x3(a.x * b.x, a.x * b.y, a.x * b.z,
-					a.y * b.x, a.y * b.y, a.y * b.z,
-					a.z * b.x, a.z * b.y, a.z * b.z);
+	    a.y * b.x, a.y * b.y, a.y * b.z,
+	    a.z * b.x, a.z * b.y, a.z * b.z);
 }
 
 float3x3 vectorToRotation(float3 vec)
@@ -49,53 +49,40 @@ float3x3 vectorToRotation(float3 vec)
 
 	float theta = length(vec);
 
-
-	if (theta < 0.0001)
-	{
+	if (theta < 0.0001) {
 		return float3x3(1.0, 0.0, 0.0,
-						0.0, 1.0, 0.0,
-						0.0, 0.0, 1.0);
+		    0.0, 1.0, 0.0,
+		    0.0, 0.0, 1.0);
 	}
 
 	float3 nvec = normalize(vec);
 
-	rotMatrix = cos(theta) * float3x3(1.0, 0.0, 0.0,
-									   0.0, 1.0, 0.0,
-									   0.0, 0.0, 1.0)
-				+ (1 - cos(theta)) * outerProdut(nvec , nvec)
-				+ sin(theta) * float3x3(0.0, -nvec.z, nvec.y,
-										 nvec.z, 0.0, -nvec.x,
-										 -nvec.y, nvec.x, 0.0);
+	rotMatrix = cos(theta) * float3x3(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
+	    + (1 - cos(theta)) * outerProdut(nvec, nvec)
+	    + sin(theta) * float3x3(0.0, -nvec.z, nvec.y, nvec.z, 0.0, -nvec.x, -nvec.y, nvec.x, 0.0);
 
 	return rotMatrix;
-
 }
-
 
 [[shader("vertex")]] VSOutput vertexMain(VSInput input)
 {
 	VSOutput output;
 
 	float3 pos = input.position;
-	pos = mul( vectorToRotation(float3(0.0, 1.0, 0.0) * uboData.time) , pos );
+	pos	   = mul(vectorToRotation(float3(0.0, 1.0, 0.0) * uboData.time), pos);
 	pos.z -= 2;
 	pos.y -= 1.0;
 
-
-
-
 	float4 pos4 = float4(pos, 1.0);
-	pos4 = mul( persMatrix.persMat , pos4 );
+	pos4	    = mul(persMatrix.persMat, pos4);
 
 	output.position = pos4;
 
-	output.uv = input.uv ;
-
+	output.uv = input.uv;
 
 	float lightDistance = length(lightData.lightPos - pos);
-	output.color = input.color * max( dot(lightData.lightPos, input.normal), 0.0) * (10.0 / (lightDistance * lightDistance)) + float4(0.1, 0.1, 0.1, 0.0);
-	output.color.a = 1.0;
-
+	output.color	    = input.color * max(dot(lightData.lightPos, input.normal), 0.0) * (10.0 / (lightDistance * lightDistance)) + float4(0.1, 0.1, 0.1, 0.0);
+	output.color.a	    = 1.0;
 
 	return output;
 }
@@ -116,7 +103,7 @@ struct FSOutput {
 [[shader("fragment")]] FSOutput fragmentMain(FSInput input)
 {
 	FSOutput output;
-	float2 uv = input.uv ;
+	float2 uv    = input.uv;
 	output.color = testTexture.Sample(testSampler, uv) * input.color;
 	return output;
 }

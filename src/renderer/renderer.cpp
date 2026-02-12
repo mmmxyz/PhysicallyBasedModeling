@@ -309,7 +309,7 @@ VkImageLayout ConvertImageLayout(Renderer::ImageLayout imageLayout)
 	case Renderer::ImageLayout::PresentSrcKHR:
 		return VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 	default:
-		assert(false, "unsupported ImageLayout");
+		assert(false);
 		return VK_IMAGE_LAYOUT_UNDEFINED;
 	}
 }
@@ -345,7 +345,7 @@ void Renderer::CreateRenderPass(Renderer::RenderPassParams& renderPassParams)
 			attachment.format = VkFormat::VK_FORMAT_D32_SFLOAT;
 			break;
 		default:
-			assert(false, "unsupported format");
+			assert(false);
 			break;
 		}
 		attachment.samples = VK_SAMPLE_COUNT_1_BIT; // multi sample しない
@@ -362,7 +362,7 @@ void Renderer::CreateRenderPass(Renderer::RenderPassParams& renderPassParams)
 			{
 				if (pRenderPassImpl->attatchmentIndexTable[i] != -1)
 				{
-					assert(false, "only one attachment can set isRequireBuffer to true");
+					assert(false);
 				}
 				auto& clearReferenceRenderPass = m_pImpl->renderPassImpl[renderPassParams.clearRenderPassName];
 				pRenderPassImpl->attatchmentIndexTable[i] = attachmentParams.attachmentLabel;
@@ -379,7 +379,7 @@ void Renderer::CreateRenderPass(Renderer::RenderPassParams& renderPassParams)
 			{
 				if (pRenderPassImpl->attatchmentIndexTable[i] != -1)
 				{
-					assert(false, "only one attachment can set isRequireBuffer to true");
+					assert(false);
 				}
 				pRenderPassImpl->attatchmentIndexTable[i] = attachmentParams.attachmentLabel;
 
@@ -481,7 +481,7 @@ void Renderer::CreateRenderPass(Renderer::RenderPassParams& renderPassParams)
 				else
 				{
 					auto& clearReferenceRenderPass = m_pImpl->renderPassImpl[renderPassParams.clearRenderPassName];
-					assert(clearReferenceRenderPass->attatchmentIndexTable[j] != -1, "only one attachment can set isRequireBuffer to true");
+					assert(clearReferenceRenderPass->attatchmentIndexTable[j] != -1);
 					attachments[j] = clearReferenceRenderPass->attatchmentTextureMemoryImpls[pRenderPassImpl->attatchmentIndexTable[j]].imageView;
 				}
 			}
@@ -497,7 +497,7 @@ void Renderer::CreateRenderPass(Renderer::RenderPassParams& renderPassParams)
 				}
 				else
 				{
-					assert(pRenderPassImpl->attatchmentIndexTable[j] != -1, "only one attachment can set isRequireBuffer to true");
+					assert(pRenderPassImpl->attatchmentIndexTable[j] != -1);
 					attachments[j] = pRenderPassImpl->attatchmentTextureMemoryImpls[pRenderPassImpl->attatchmentIndexTable[j]].imageView;
 				}
 			}

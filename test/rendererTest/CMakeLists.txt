@@ -4,6 +4,8 @@ project(rendererTest CXX)
 
 add_executable(rendererTest main.cpp "${CMAKE_CURRENT_BINARY_DIR}/ShaderBinary/test.vert.spv")
 
+target_compile_definitions(rendererTest PRIVATE RESOURCE_DIR="${RESOURCE_DIR_PATH_CMAKE}")
+
 target_include_directories(rendererTest PRIVATE
 	../..
 )
@@ -14,7 +16,7 @@ target_link_libraries(rendererTest PRIVATE
 
 get_target_property(EXE_OUTPUT_PATH rendererTest RUNTIME_OUTPUT_DIRECTORY)
 if(NOT EXE_OUTPUT_PATH)
-    set(EXE_OUTPUT_PATH "${CMAKE_CURRENT_BINARY_DIR}") # ƒfƒtƒHƒ‹ƒg‚Íƒrƒ‹ƒhƒfƒBƒŒƒNƒgƒŠ
+    set(EXE_OUTPUT_PATH "${CMAKE_CURRENT_BINARY_DIR}") # ï¿½fï¿½tï¿½Hï¿½ï¿½ï¿½gï¿½Íƒrï¿½ï¿½ï¿½hï¿½fï¿½Bï¿½ï¿½ï¿½Nï¿½gï¿½ï¿½
 endif()
 
 if(WIN32)
