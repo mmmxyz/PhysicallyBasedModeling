@@ -223,7 +223,16 @@ void CreateRenderPassForShadowMap(Renderer& renderer)
 	renderer.CreateRenderPass(clearRenderPassParams);
 }
 
-void CreateGeometryPipeline(Renderer& renderer)
+Renderer::VertexAttributeLayout RegisterVertexAttribute(Renderer& renderer)
+{
+	Renderer::VertexAttributeLayout vertexAttributeLayout;
+	Renderer::CreateVertexAttributeLayout2<BasicVertex>(&vertexAttributeLayout);
+	renderer.RegisterVertexInputStateImpl3(&vertexAttributeLayout);
+
+	return vertexAttributeLayout;
+}
+
+void CreateGeometryPipeline(Renderer& renderer, std::string vertexAttributeName)
 {
 
 	Renderer::GraphicsPipelineParams graphicsPipelineParams;
@@ -241,12 +250,7 @@ void CreateGeometryPipeline(Renderer& renderer)
 	graphicsPipelineParams.shaders[0] = &vertexShaderStage;
 	graphicsPipelineParams.shaders[1] = &fragmentShaderStage;
 
-	// kokoha bunri dekiru
-	Renderer::VertexAttributeLayout vertexAttributeLayout;
-	Renderer::CreateVertexAttributeLayout2<BasicVertex>(&vertexAttributeLayout);
-	renderer.RegisterVertexInputStateImpl3(&vertexAttributeLayout);
-
-	graphicsPipelineParams.vertexLayoutName = vertexAttributeLayout.name;
+	graphicsPipelineParams.vertexLayoutName = vertexAttributeName;
 
 	Renderer::DescriptorSetLayoutParams descriptorSetLayout;
 	Renderer::DescriptorSetBindingParams persMatUboDescriptorSetLayout;
@@ -289,9 +293,8 @@ void CreateGeometryPipeline(Renderer& renderer)
 	renderer.CreateGraphicsPipeline(graphicsPipelineParams);
 }
 
-void CreateShadowMapPipeline(Renderer& renderer)
+void CreateShadowMapPipeline(Renderer& renderer, std::string vertexAttributeName)
 {
-
 	Renderer::GraphicsPipelineParams graphicsPipelineParams;
 
 	Renderer::ShaderStageParams vertexShaderStage;
@@ -307,11 +310,7 @@ void CreateShadowMapPipeline(Renderer& renderer)
 	graphicsPipelineParams.shaders[0] = &vertexShaderStage;
 	graphicsPipelineParams.shaders[1] = &fragmentShaderStage;
 
-	Renderer::VertexAttributeLayout vertexAttributeLayout;
-	Renderer::CreateVertexAttributeLayout2<BasicVertex>(&vertexAttributeLayout);
-	renderer.RegisterVertexInputStateImpl3(&vertexAttributeLayout);
-
-	graphicsPipelineParams.vertexLayoutName = vertexAttributeLayout.name;
+	graphicsPipelineParams.vertexLayoutName = vertexAttributeName;
 
 	Renderer::DescriptorSetLayoutParams descriptorSetLayout;
 	Renderer::DescriptorSetBindingParams persMatUboDescriptorSetLayout;
@@ -403,7 +402,7 @@ void CreateRenderObject(Renderer& renderer, DrawObject& drawObject1, DrawObject&
 	std::vector<fvec2> uvs;
 	std::vector<uint32_t> faceindices;
 
-	constexpr auto resourcePath = RESOURCE_DIR "/Bunny.obj";
+	constexpr auto resourcePath = RESOURCE_DIR "/LightBunny.obj";
 
 	LoadOBJtoRenderTriangleMesh(
 	    resourcePath,
@@ -550,8 +549,12 @@ int main()
 
 	//////////
 
-	CreateGeometryPipeline(renderer);
-	CreateShadowMapPipeline(renderer);
+	auto vertexAttribute = RegisterVertexAttribute(renderer);
+
+	/////////
+
+	CreateGeometryPipeline(renderer, vertexAttribute.name);
+	CreateShadowMapPipeline(renderer, vertexAttribute.name);
 
 	//////////
 	RootAllocator RootAllocator;

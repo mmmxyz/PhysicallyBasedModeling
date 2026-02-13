@@ -1536,6 +1536,11 @@ void Renderer::DrawEnd()
 void Renderer::RegisterVertexInputStateImpl3(VertexAttributeLayout* vertexAttributeLayout)
 {
 	auto* pVertexInputStateImpl = new RendererImpl::VertexInputStateImpl();
+	if(m_pImpl->vertexInputStateImplMap[vertexAttributeLayout->name.data()]  != nullptr)
+	{
+		
+	}
+
 	m_pImpl->vertexInputStateImplMap[vertexAttributeLayout->name.data()] = pVertexInputStateImpl;
 
 	pVertexInputStateImpl->bindingDescriptions.resize(1);
