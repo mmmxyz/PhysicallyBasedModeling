@@ -32,14 +32,14 @@ public:
 	};
 
 	struct GpuBuffer {
-		uint32_t size;
+		//uint32_t size;
 		GpuMemoryImpl* pGpuMemoryImpl = nullptr;
 	};
 
 	struct GpuTexture {
-		uint32_t width;
-		uint32_t height;
-		uint32_t size;
+		//uint32_t width;
+		//uint32_t height;
+		//uint32_t size;
 		GpuTextureMemoryImpl* pGpuTextureMemoryImpl = nullptr;
 	};
 
@@ -84,6 +84,10 @@ public:
 		Undef,
 		SameAsSwapChain,
 		RGBA8_SNORM,
+		RGBA8_UNORM,
+		RGBA16_SFLOAT,
+		RGBA32_SNORM,
+		RGBA32_UNORM,
 		DEPTH16_UNORM,
 		DEPTH32_SFLOAT,
 	};
@@ -103,8 +107,47 @@ public:
 		// TODO ��
 	};
 
+	enum AttatchmentLabel {
+		UseSwapChainAttachment,
+		ColorAttachment,
+		DepthAttachment,
+		NormalAttachment,
+		PositionAttachment,
+		AlbedoAttachment,
+		MetallicRoughnessAttachment,
+		Count,
+	};
+
+	enum ClearColorType {
+		ClearColor,
+		ClearDepthStancil
+	};
+
+	enum CompareOperator {
+		Less,
+		LessEqual,
+		Greater,
+		GreaterEqual,
+		Equal,
+		NotEqual,
+		Always,
+		Never,
+	};
+
+	struct CreateImageParams
+	{
+		uint32_t width;
+		uint32_t height;
+		ImageFormat format;
+		bool isColorAttatchment = false;
+		bool isDepthStencilAttatchment = false;
+		bool isInputAttatchment = false;
+	};
+
+
 	GpuBuffer CreateGpuBuffer(uint32_t size, BufferCreateUsage usage);
-	GpuTexture CreateGpuTexture(uint32_t width, uint32_t height, ImageFormat format);
+	GpuTexture CreateGpuTexture(CreateImageParams& createImageParams);
+	GpuTexture GetRenderPassAttatchmentTexture(std::string renderPassName, Renderer::AttatchmentLabel label);
 	DescriptorSetInterface CreateDescriptorSetInterface(std::string graphicsPipelineName, int set);
 	DescriptorSetInterface CreateDescriptorSetInterface(std::string graphicsPipelineName, int set, bool isBindless, int bindlessCounter);
 
@@ -126,12 +169,12 @@ public:
 
 		DescriptorType type;
 
-		enum ShaderStage {
+		enum ShaderStage : uint32_t {
 			Vertex_bit = 0x00000001,
 			Fragment_bit = 0x00000010,
 		};
 
-		ShaderStage shaderStage;
+		uint32_t shaderStage;
 		uint32_t bindingNum;
 		uint32_t count;
 	};
@@ -168,17 +211,6 @@ public:
 		ShaderStageType stageType;
 	};
 
-	enum AttatchmentLabel {
-		UseSwapChainAttachment,
-		ColorAttachment,
-		DepthAttachment,
-		NormalAttachment,
-		PositionAttachment,
-		AlbedoAttachment,
-		MetallicRoughnessAttachment,
-		Count,
-	};
-
 	struct AttachmentParams {
 		ImageFormat format = Undef;
 		bool clear = true;
@@ -187,6 +219,10 @@ public:
 		ImageLayout finalLayout = ColorAttachmentOptimal;
 
 		AttatchmentLabel attachmentLabel = ColorAttachment;
+
+		bool isColorAttatchment = false;
+		bool isDepthStencilAttatchment = false;
+		bool isInputAttatchment = false;
 	};
 
 	struct SubpassParams {
@@ -218,6 +254,9 @@ public:
 		std::string renderPassName;
 		int32_t subpassIndex = 0;
 		ValueArray<DescriptorSetLayoutParams*> descriptorSetParams;
+		CompareOperator depthOperator = CompareOperator::Greater;
+		bool depthTestEnable = true;
+		bool depthWriteEnable = true;
 		int pushConstantSize;
 		// TODO primitive, blend, rasterization, depthstencil state
 	};
@@ -308,9 +347,12 @@ public:
 
 	void UpdatePushConstant(UpdatePushConstantParams& pushConstantParams);
 
+
+
 	class BeginRenderPassParams {
 	public:
 		std::string renderPassName;
+		std::vector< Renderer::ClearColorType> clearColors;
 	};
 
 	class DrawParams {
@@ -323,11 +365,27 @@ public:
 		std::string graphicsPipelineName;
 	};
 
+	class ClearRrenderPassAttatchmentParams {
+		class ClearRenderPassAttatchmentInfo {
+		public:
+			enum ClearRrenderPassAttatchmentType {
+				ClearColor,
+				ClearDepthStancil
+			} type;
+			AttatchmentLabel label;
+			int attachmentIdx;
+		};
+	public:
+		std::string renderPassName;
+		std::vector<ClearRenderPassAttatchmentInfo> attatchmentInfos;
+	};
+
 	uint32_t counter = 0;
 	uint32_t frameBufferIndex = 999;
 	bool DrawCondition();
 	void DrawStart();
 	void BeginRenderPass(BeginRenderPassParams& beginRenderPassParams);
+	void ClearRenderPassAttatchment(ClearRrenderPassAttatchmentParams& clearRenderPassAttatchmentParams);
 	void Draw(DrawParams& drawParams);
 	void EndRenderPass();
 	void DrawEnd();

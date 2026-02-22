@@ -10,6 +10,8 @@
 #include <cassert>
 #include "src/utils/logger/logger.hpp"
 
+
+
 void Renderer::CreateGraphicsPipeline(Renderer::GraphicsPipelineParams& graphicsPipelineParams)
 {
 	Logger logger;
@@ -195,12 +197,14 @@ void Renderer::CreateGraphicsPipeline(Renderer::GraphicsPipelineParams& graphics
 	PMSC.alphaToCoverageEnable = VK_FALSE;
 	PMSC.alphaToOneEnable = VK_FALSE;
 
+	VkCompareOp depthCompareOp = ConverterCompareOp(graphicsPipelineParams.depthOperator);
+
 	VkPipelineDepthStencilStateCreateInfo PDSSC = {};
 	PDSSC.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
 	PDSSC.depthBoundsTestEnable = VK_TRUE;
-	PDSSC.depthCompareOp = VK_COMPARE_OP_LESS;
-	PDSSC.depthTestEnable = VK_TRUE;
-	PDSSC.depthWriteEnable = VK_TRUE;
+	PDSSC.depthCompareOp = depthCompareOp;
+	PDSSC.depthTestEnable = (graphicsPipelineParams.depthTestEnable) ? VK_TRUE : VK_FALSE;
+	PDSSC.depthWriteEnable = (graphicsPipelineParams.depthWriteEnable) ? VK_TRUE : VK_FALSE;
 	PDSSC.depthBoundsTestEnable = VK_FALSE; // 境界テストはOFF
 	PDSSC.stencilTestEnable = VK_FALSE;
 
@@ -259,7 +263,7 @@ void Renderer::CreateGraphicsPipeline(Renderer::GraphicsPipelineParams& graphics
 	VkGraphicsPipelineCreateInfo GPCI = {};
 	GPCI.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
 	GPCI.pNext = nullptr;
-	GPCI.stageCount = 2;
+	GPCI.stageCount = graphicsPipelineParams.shaders.size();
 	GPCI.pStages = shaderStages;
 	GPCI.pVertexInputState = &m_pImpl->vertexInputStateImplMap[graphicsPipelineParams.vertexLayoutName]->vertexInputInfo;
 	GPCI.pInputAssemblyState = &PIASCI;
@@ -326,28 +330,12 @@ void Renderer::CreateRenderPass(Renderer::RenderPassParams& renderPassParams)
 		pRenderPassImpl->attatchmentIndexTable[i] = -1;
 	}
 
-	VkAttachmentDescription attachments[128] = {};
+	VkAttachmentDescription attachmentDescs[128] = {};
 	for (int i = 0; i < renderPassParams.attachments.size(); i++) {
 		auto& attachmentParams = renderPassParams.attachments[i];
-		auto& attachment = attachments[i];
+		auto& attachment = attachmentDescs[i];
 
-		switch (attachmentParams.format) {
-		case ImageFormat::SameAsSwapChain:
-			attachment.format = m_pImpl->swapChainImageFormat;
-			break;
-		case ImageFormat::RGBA8_SNORM:
-			attachment.format = VkFormat::VK_FORMAT_R8G8B8A8_SNORM;
-			break;
-		case ImageFormat::DEPTH16_UNORM:
-			attachment.format = VkFormat::VK_FORMAT_D16_UNORM;
-			break;
-		case ImageFormat::DEPTH32_SFLOAT:
-			attachment.format = VkFormat::VK_FORMAT_D32_SFLOAT;
-			break;
-		default:
-			assert(false);
-			break;
-		}
+		attachment.format = ConvertImageFormat(attachmentParams.format, m_pImpl->swapChainImageFormat);
 		attachment.samples = VK_SAMPLE_COUNT_1_BIT; // multi sample しない
 		attachment.loadOp = attachmentParams.clear ? VK_ATTACHMENT_LOAD_OP_CLEAR : VK_ATTACHMENT_LOAD_OP_LOAD;
 		attachment.storeOp = attachmentParams.store ? VK_ATTACHMENT_STORE_OP_STORE : VK_ATTACHMENT_STORE_OP_DONT_CARE;
@@ -384,7 +372,15 @@ void Renderer::CreateRenderPass(Renderer::RenderPassParams& renderPassParams)
 				pRenderPassImpl->attatchmentIndexTable[i] = attachmentParams.attachmentLabel;
 
 				auto& attatchmentTextureMemoryImpl = pRenderPassImpl->attatchmentTextureMemoryImpls[attachmentParams.attachmentLabel];
-				m_pImpl->CreateImage(m_pImpl->surfaceCapabilities.currentExtent.width, m_pImpl->surfaceCapabilities.currentExtent.height, attatchmentTextureMemoryImpl, attachmentParams.format);
+				CreateImageParams createImageParams;
+				createImageParams.width = m_pImpl->surfaceCapabilities.currentExtent.width;
+				createImageParams.height = m_pImpl->surfaceCapabilities.currentExtent.height;
+				createImageParams.format = attachmentParams.format;
+				createImageParams.isColorAttatchment = attachmentParams.isColorAttatchment;
+				createImageParams.isDepthStencilAttatchment = attachmentParams.isDepthStencilAttatchment;
+				createImageParams.isInputAttatchment = attachmentParams.isInputAttatchment;
+
+				m_pImpl->CreateImage(createImageParams, attatchmentTextureMemoryImpl);
 				m_pImpl->CreateImageView(attatchmentTextureMemoryImpl, attachmentParams.format);
 			}
 			else
@@ -451,7 +447,7 @@ void Renderer::CreateRenderPass(Renderer::RenderPassParams& renderPassParams)
 	VkRenderPassCreateInfo RPCI = {};
 	RPCI.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
 	RPCI.attachmentCount = renderPassParams.attachments.size();
-	RPCI.pAttachments = attachments;
+	RPCI.pAttachments = attachmentDescs;
 	RPCI.subpassCount = renderPassParams.subpasses.size();
 	RPCI.pSubpasses = subpasses;
 
@@ -466,7 +462,7 @@ void Renderer::CreateRenderPass(Renderer::RenderPassParams& renderPassParams)
 	pRenderPassImpl->pFrameBuffer = new VkFramebuffer[m_pImpl->swapChainImageCount];
 	for (int i = 0; i < m_pImpl->swapChainImageCount; i++) {
 
-		VkImageView attachments[16];
+		VkImageView vkImageAttachments[16];
 		int attatmentCount = renderPassParams.attachments.size();
 
 		if (renderPassParams.isClearRenderPass)
@@ -475,14 +471,14 @@ void Renderer::CreateRenderPass(Renderer::RenderPassParams& renderPassParams)
 			{
 				if (pRenderPassImpl->attatchmentIndexTable[j] == AttatchmentLabel::UseSwapChainAttachment)
 				{
-					attachments[j] = m_pImpl->swapChainImageViews[i];
+					vkImageAttachments[j] = m_pImpl->swapChainImageViews[i];
 					continue;
 				}
 				else
 				{
 					auto& clearReferenceRenderPass = m_pImpl->renderPassImpl[renderPassParams.clearRenderPassName];
 					assert(clearReferenceRenderPass->attatchmentIndexTable[j] != -1);
-					attachments[j] = clearReferenceRenderPass->attatchmentTextureMemoryImpls[pRenderPassImpl->attatchmentIndexTable[j]].imageView;
+					vkImageAttachments[j] = clearReferenceRenderPass->attatchmentTextureMemoryImpls[pRenderPassImpl->attatchmentIndexTable[j]].imageView;
 				}
 			}
 		}
@@ -492,13 +488,13 @@ void Renderer::CreateRenderPass(Renderer::RenderPassParams& renderPassParams)
 			{
 				if (pRenderPassImpl->attatchmentIndexTable[j] == AttatchmentLabel::UseSwapChainAttachment)
 				{
-					attachments[j] = m_pImpl->swapChainImageViews[i];
+					vkImageAttachments[j] = m_pImpl->swapChainImageViews[i];
 					continue;
 				}
 				else
 				{
 					assert(pRenderPassImpl->attatchmentIndexTable[j] != -1);
-					attachments[j] = pRenderPassImpl->attatchmentTextureMemoryImpls[pRenderPassImpl->attatchmentIndexTable[j]].imageView;
+					vkImageAttachments[j] = pRenderPassImpl->attatchmentTextureMemoryImpls[pRenderPassImpl->attatchmentIndexTable[j]].imageView;
 				}
 			}
 		}
@@ -508,7 +504,7 @@ void Renderer::CreateRenderPass(Renderer::RenderPassParams& renderPassParams)
 		FCI.flags = 0;
 		FCI.renderPass = pRenderPassImpl->renderPass;
 		FCI.attachmentCount = attatmentCount;
-		FCI.pAttachments = attachments;
+		FCI.pAttachments = vkImageAttachments;
 		FCI.width = m_pImpl->surfaceCapabilities.currentExtent.width;
 		FCI.height = m_pImpl->surfaceCapabilities.currentExtent.height;
 		FCI.layers = 1;
@@ -527,16 +523,36 @@ Renderer::GpuBuffer Renderer::CreateGpuBuffer(uint32_t size, Renderer::BufferCre
 	GpuMemoryImpl* pGpuMemoryImpl = new GpuMemoryImpl();
 	m_pImpl->CreateBuffer(*pGpuMemoryImpl, usage, size);
 
-	return { size, pGpuMemoryImpl };
+	return { pGpuMemoryImpl };
 }
 
-Renderer::GpuTexture Renderer::CreateGpuTexture(uint32_t width, uint32_t height, ImageFormat format)
+Renderer::GpuTexture Renderer::CreateGpuTexture(CreateImageParams& createImageParams)
 {
 	GpuTextureMemoryImpl* pGpuTextureMemoryImpl = new GpuTextureMemoryImpl();
-	m_pImpl->CreateImage(width, height, *pGpuTextureMemoryImpl, format);
-	m_pImpl->CreateImageView(*pGpuTextureMemoryImpl, format);
+	m_pImpl->CreateImage(createImageParams, *pGpuTextureMemoryImpl);
+	m_pImpl->CreateImageView(*pGpuTextureMemoryImpl, createImageParams.format);
 	m_pImpl->CreateSampler(*pGpuTextureMemoryImpl);
-	return { width, height, pGpuTextureMemoryImpl->size, pGpuTextureMemoryImpl };
+	return { pGpuTextureMemoryImpl };
+}
+
+Renderer::GpuTexture  Renderer::GetRenderPassAttatchmentTexture(std::string renderPassName, Renderer::AttatchmentLabel label)
+{
+	GpuTextureMemoryImpl* pGpuTextureMemoryImpl = new GpuTextureMemoryImpl();
+	auto& renderPassImpl = m_pImpl->renderPassImpl[renderPassName];
+	auto textureMemoryImpl = renderPassImpl->attatchmentTextureMemoryImpls[label];
+
+	if (label == Renderer::AttatchmentLabel::Count)
+	{
+		assert(false);
+	}
+	else
+	{
+		pGpuTextureMemoryImpl->image = textureMemoryImpl.image;
+		pGpuTextureMemoryImpl->imageView = textureMemoryImpl.imageView;
+		m_pImpl->CreateSampler(*pGpuTextureMemoryImpl);
+	}
+
+	return { pGpuTextureMemoryImpl };
 }
 
 Renderer::DescriptorSetInterface Renderer::CreateDescriptorSetInterface(std::string graphicsPipelineName, int set)
@@ -1438,14 +1454,62 @@ void Renderer::BeginRenderPass(BeginRenderPassParams& beginRenderPassParams)
 	RPBI.framebuffer = renderPassImpl->pFrameBuffer[frameBufferIndex];
 	RPBI.renderArea.offset = { 0, 0 };
 	RPBI.renderArea.extent = m_pImpl->swapChainExtent;
-	VkClearValue clearColor[2];
-	clearColor[0].color = { 0.0, 0.0, 0.0, 1.0 };
-	clearColor[1].depthStencil = { 1.0f, 0 };
-	RPBI.clearValueCount = (RendererImpl::GetAttatchmentIndex(Renderer::DepthAttachment, renderPassImpl) != -1) ? 2 : 1;
+	VkClearValue clearColor[16];
+	for (int i = 0; i < beginRenderPassParams.clearColors.size(); i++)
+	{
+		switch (beginRenderPassParams.clearColors[i])
+		{
+		case ClearColor:
+			clearColor[i].color = { 0.0, 0.0, 0.0, 1.0 };
+			break;
+		case ClearDepthStancil:
+			clearColor[i].depthStencil = { 0.0f, 0 };
+			break;
+		default:
+			assert(false);
+		}
+	}
+	RPBI.clearValueCount = beginRenderPassParams.clearColors.size();
 	RPBI.pClearValues = clearColor;
 	// renderpass 開始を記録
 	vkCmdBeginRenderPass(m_pImpl->CB[gpuIndex], &RPBI, VK_SUBPASS_CONTENTS_INLINE); // renderpass command は一次コマンドで実行される
 }
+
+void Renderer::ClearRenderPassAttatchment(ClearRrenderPassAttatchmentParams& clearRenderPassAttatchmentParams)
+{
+	uint32_t gpuIndex = (counter) % 2;
+
+	auto& renderPassImpl = m_pImpl->renderPassImpl[clearRenderPassAttatchmentParams.renderPassName];
+
+	VkClearAttachment clearAttachment[16];
+	VkClearRect clearRect[16];
+	for (int i = 0; i < clearRenderPassAttatchmentParams.attatchmentInfos.size(); i++)
+	{
+		auto attatchmentInfo = clearRenderPassAttatchmentParams.attatchmentInfos[i];
+		switch (attatchmentInfo.type)
+		{
+		case ClearColor:
+			clearAttachment[i].clearValue.color = { 0.0, 0.0, 0.0, 1.0 };
+			clearAttachment[i].aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			break;
+		case ClearDepthStancil:
+			clearAttachment[i].clearValue.depthStencil = { 0.0f, 0 };
+			clearAttachment[i].aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+			break;
+		default:
+			assert(false);
+		}
+		clearAttachment[i].colorAttachment = attatchmentInfo.attachmentIdx;
+
+		clearRect[i].rect.offset = { 0, 0 };
+		clearRect[i].rect.extent = m_pImpl->swapChainExtent;
+		clearRect[i].baseArrayLayer = 0;
+		clearRect[i].layerCount = 1;
+	}
+
+	vkCmdClearAttachments(m_pImpl->CB[gpuIndex], clearRenderPassAttatchmentParams.attatchmentInfos.size(), clearAttachment, clearRenderPassAttatchmentParams.attatchmentInfos.size(), clearRect);
+}
+
 
 void Renderer::Draw(DrawParams& drawParams)
 {
@@ -1536,9 +1600,9 @@ void Renderer::DrawEnd()
 void Renderer::RegisterVertexInputStateImpl3(VertexAttributeLayout* vertexAttributeLayout)
 {
 	auto* pVertexInputStateImpl = new RendererImpl::VertexInputStateImpl();
-	if(m_pImpl->vertexInputStateImplMap[vertexAttributeLayout->name.data()]  != nullptr)
+	if (m_pImpl->vertexInputStateImplMap[vertexAttributeLayout->name.data()] != nullptr)
 	{
-		
+
 	}
 
 	m_pImpl->vertexInputStateImplMap[vertexAttributeLayout->name.data()] = pVertexInputStateImpl;

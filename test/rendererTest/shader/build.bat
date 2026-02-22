@@ -10,4 +10,5 @@ if not exist "%outShaderPath%" (
 )
 
 %VULKAN_SDK%\Bin\slangc.exe -target spirv -stage vertex %~dp0\test.slang -o %outShaderPath%\test.vert.spv -entry vertexMain
+%VULKAN_SDK%\Bin\slangc.exe -target spirv -stage vertex %~dp0\shadow.slang -o %outShaderPath%\shadow.vert.spv -entry vertexMain
 %VULKAN_SDK%\Bin\slangc.exe -target spirv -stage fragment %~dp0\test.slang -o %outShaderPath%\test.frag.spv -entry fragmentMain

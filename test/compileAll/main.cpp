@@ -1,7 +1,7 @@
 
 #include "src/renderer/mesh/drawArray.hpp"
 #include "src/utils/mathfunc/mathfunc.hpp"
-#include "src/utils/geometry/array.hpp"
+#include "src/utils/memory/array.hpp"
 #include "src/utils/memory/allocator.hpp"
 
 

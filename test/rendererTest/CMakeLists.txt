@@ -21,9 +21,9 @@ endif()
 
 if(WIN32)
 	add_custom_command(
-		OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/ShaderBinary/test.vert.spv"
+		OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/ShaderBinary/test.vert.spv" "${CMAKE_CURRENT_BINARY_DIR}/ShaderBinary/shadow.vert.spv"
 		COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/shader/build.bat" "${EXE_OUTPUT_PATH}"
-		DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/shader/test.slang" )
+		DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/shader/test.slang" "${CMAKE_CURRENT_SOURCE_DIR}/shader/shadow.slang" )
 elseif(UNIX)
 	add_custom_command(TARGET rendererTest COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/shader/build.sh "${EXE_OUTPUT_PATH}" "${CMAKE_CURRENT_SOURCE_DIR}/../../3rdparty/slangBinary/bin")
 endif()

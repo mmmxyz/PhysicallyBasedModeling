@@ -11,7 +11,57 @@
 
 #include "src/renderer/renderer.hpp"
 #include "src/renderer/gpuMemoryImpl.hpp"
-#include "src/utils/logger/assert.hpp"
+
+
+inline VkCompareOp ConverterCompareOp(Renderer::CompareOperator compare)
+{
+	switch (compare)
+	{
+	case Renderer::Less:
+		return VK_COMPARE_OP_LESS;
+	case Renderer::LessEqual:
+		return VK_COMPARE_OP_LESS_OR_EQUAL;
+	case Renderer::Greater:
+		return VK_COMPARE_OP_GREATER;
+	case Renderer::GreaterEqual:
+		return VK_COMPARE_OP_GREATER_OR_EQUAL;
+	case Renderer::Equal:
+		return VK_COMPARE_OP_EQUAL;
+	case Renderer::NotEqual:
+		return VK_COMPARE_OP_NOT_EQUAL;
+	case Renderer::Always:
+		return VK_COMPARE_OP_ALWAYS;
+	case Renderer::Never:
+		return VK_COMPARE_OP_NEVER;
+	default:
+		assert(false);
+		return VK_COMPARE_OP_NEVER;
+	}
+}
+
+inline VkFormat ConvertImageFormat(Renderer::ImageFormat format, VkFormat swapChainFormat)
+{
+	switch (format)
+	{
+	case Renderer::SameAsSwapChain:
+		return swapChainFormat;
+	case Renderer::RGBA8_SNORM:
+		return VK_FORMAT_R8G8B8A8_SRGB;
+	case Renderer::RGBA8_UNORM:
+		return VK_FORMAT_R8G8B8A8_UNORM;
+	case Renderer::RGBA16_SFLOAT:
+		return VK_FORMAT_R16G16B16A16_SFLOAT;
+	case Renderer::RGBA32_SNORM:
+		return VK_FORMAT_R32G32B32A32_SFLOAT;
+	case Renderer::DEPTH16_UNORM:
+		return VK_FORMAT_D16_UNORM;
+	case Renderer::DEPTH32_SFLOAT:
+		return VK_FORMAT_D32_SFLOAT;
+	default:
+		assert(false);
+		return VK_FORMAT_UNDEFINED;
+	}
+}
 
 // TODO: 実装分離
 class RendererImpl
@@ -192,38 +242,34 @@ public:
 		}
 	}
 
-	void CreateImage(uint32_t width, uint32_t height, GpuTextureMemoryImpl& gpuTextureMemoryImpl, Renderer::ImageFormat format)
+	void CreateImage(Renderer::CreateImageParams& createImageParams, GpuTextureMemoryImpl& gpuTextureMemoryImpl)
 	{
-		gpuTextureMemoryImpl.width = width;
-		gpuTextureMemoryImpl.height = height;
-
+		gpuTextureMemoryImpl.width = createImageParams.width;
+		gpuTextureMemoryImpl.height = createImageParams.height;
 
 		VkFormat vkFormat;
 		VkImageUsageFlags usageFlag = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-		switch (format)
-		{
-		case Renderer::ImageFormat::RGBA8_SNORM:
-			vkFormat = VK_FORMAT_R8G8B8A8_UNORM;
-			break;
-		case Renderer::DEPTH16_UNORM:
-			vkFormat = VK_FORMAT_D16_UNORM;
-			usageFlag |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-			break;
-		case Renderer::DEPTH32_SFLOAT:
-			vkFormat = VK_FORMAT_D32_SFLOAT;
-			usageFlag |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-			break;
-		default:
-			assert(false);
-			break;
-		}
 
+		vkFormat = ConvertImageFormat(createImageParams.format, VK_FORMAT_UNDEFINED);
+
+		if (createImageParams.isInputAttatchment)
+		{
+			usageFlag |= VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
+		}
+		if (createImageParams.isColorAttatchment)
+		{
+			usageFlag |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+		}
+		if (createImageParams.isDepthStencilAttatchment)
+		{
+			usageFlag |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+		}
 
 		VkImageCreateInfo imageCreateInfo{};
 		imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 		imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
-		imageCreateInfo.extent.width = width;
-		imageCreateInfo.extent.height = height;
+		imageCreateInfo.extent.width = createImageParams.width;
+		imageCreateInfo.extent.height = createImageParams.height;
 		imageCreateInfo.extent.depth = 1;
 		imageCreateInfo.mipLevels = 1;
 		imageCreateInfo.arrayLayers = 1;
@@ -260,22 +306,12 @@ public:
 		VkImageAspectFlags aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 
 		VkFormat vkFormat;
-		switch (format)
+
+		vkFormat = ConvertImageFormat(format, VK_FORMAT_UNDEFINED);
+
+		if (format == Renderer::ImageFormat::DEPTH16_UNORM || format == Renderer::ImageFormat::DEPTH32_SFLOAT)
 		{
-		case Renderer::ImageFormat::RGBA8_SNORM:
-			vkFormat = VK_FORMAT_R8G8B8A8_UNORM;
-			break;
-		case Renderer::DEPTH16_UNORM:
-			vkFormat = VK_FORMAT_D16_UNORM;
 			aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-			break;
-		case Renderer::DEPTH32_SFLOAT:
-			vkFormat = VK_FORMAT_D32_SFLOAT;
-			aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-			break;
-		default:
-			assert(false);
-			break;
 		}
 
 		VkImageViewCreateInfo textureImageVCI = {};
