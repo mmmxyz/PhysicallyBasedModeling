@@ -1460,10 +1460,18 @@ void Renderer::BeginRenderPass(BeginRenderPassParams& beginRenderPassParams)
 		switch (beginRenderPassParams.clearColors[i])
 		{
 		case ClearColor:
-			clearColor[i].color = { 0.0, 0.0, 0.0, 1.0 };
+			clearColor[i].color = {
+				beginRenderPassParams.clearColorValues[i].color.x,
+				beginRenderPassParams.clearColorValues[i].color.y, 
+				beginRenderPassParams.clearColorValues[i].color.z, 
+				beginRenderPassParams.clearColorValues[i].color.w, 
+			};
 			break;
 		case ClearDepthStancil:
-			clearColor[i].depthStencil = { 0.0f, 0 };
+			clearColor[i].depthStencil = {
+				beginRenderPassParams.clearColorValues[i].depthStencil.depth,
+				beginRenderPassParams.clearColorValues[i].depthStencil.stencil
+			}; 
 			break;
 		default:
 			assert(false);
@@ -1489,7 +1497,7 @@ void Renderer::ClearRenderPassAttatchment(ClearRrenderPassAttatchmentParams& cle
 		switch (attatchmentInfo.type)
 		{
 		case ClearColor:
-			clearAttachment[i].clearValue.color = { 0.0, 0.0, 0.0, 1.0 };
+			clearAttachment[i].clearValue.color = { attatchmentInfo.clearColor.x, attatchmentInfo.clearColor.y, attatchmentInfo.clearColor.z, attatchmentInfo.clearColor.w };
 			clearAttachment[i].aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 			break;
 		case ClearDepthStancil:

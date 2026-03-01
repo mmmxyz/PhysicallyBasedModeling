@@ -700,7 +700,7 @@ void CreateRenderObject(Renderer& renderer, DrawObject& drawObject1, DrawObject&
 	std::vector<fvec2> uvs;
 	std::vector<uint32_t> faceindices;
 
-	constexpr auto resourcePath = RESOURCE_DIR "/Bunny.obj";
+	constexpr auto resourcePath = RESOURCE_DIR "/LightBunny.obj";
 
 	LoadOBJtoRenderTriangleMesh(
 		resourcePath,
@@ -984,7 +984,9 @@ int main()
 
 		Renderer::BeginRenderPassParams beginClearShadowRenderPassParams{ "ClearShadowMapPass" };
 		beginClearShadowRenderPassParams.clearColors.resize(1);
+		beginClearShadowRenderPassParams.clearColorValues.resize(1);
 		beginClearShadowRenderPassParams.clearColors[0] = Renderer::ClearDepthStancil;
+		beginClearShadowRenderPassParams.clearColorValues[0].depthStencil = {0.0, 0};
 		renderer.BeginRenderPass(beginClearShadowRenderPassParams);
 		renderer.EndRenderPass();
 
@@ -1001,8 +1003,11 @@ int main()
 
 		Renderer::BeginRenderPassParams beginClearRenderPassParams{ "ClearRenderPass" };
 		beginClearRenderPassParams.clearColors.resize(2);
+		beginClearRenderPassParams.clearColorValues.resize(2);
 		beginClearRenderPassParams.clearColors[0] = Renderer::ClearColor;
+		beginClearRenderPassParams.clearColorValues[0].color = fvec4{ 0.2, 0.6, 0.8, 1.0f };
 		beginClearRenderPassParams.clearColors[1] = Renderer::ClearDepthStancil;
+		beginClearRenderPassParams.clearColorValues[1].depthStencil = { 0.0, 0 };
 		renderer.BeginRenderPass(beginClearRenderPassParams);
 		renderer.EndRenderPass();
 

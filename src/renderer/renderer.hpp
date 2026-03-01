@@ -87,7 +87,6 @@ public:
 		RGBA8_UNORM,
 		RGBA16_SFLOAT,
 		RGBA32_SNORM,
-		RGBA32_UNORM,
 		DEPTH16_UNORM,
 		DEPTH32_SFLOAT,
 	};
@@ -347,12 +346,20 @@ public:
 
 	void UpdatePushConstant(UpdatePushConstantParams& pushConstantParams);
 
-
+	union ClearColorValue {
+		fvec4 color;
+		struct {
+			float depth;
+			uint32_t stencil;
+		} depthStencil;
+		ClearColorValue() : color(fvec4::zero()) {}
+	};
 
 	class BeginRenderPassParams {
 	public:
 		std::string renderPassName;
 		std::vector< Renderer::ClearColorType> clearColors;
+		std::vector<ClearColorValue> clearColorValues;
 	};
 
 	class DrawParams {
@@ -374,6 +381,8 @@ public:
 			} type;
 			AttatchmentLabel label;
 			int attachmentIdx;
+			fvec4 clearColor;
+			float clearDepth;
 		};
 	public:
 		std::string renderPassName;
