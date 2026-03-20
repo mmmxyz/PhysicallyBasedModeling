@@ -1,4 +1,3 @@
-
 #include "src/renderer/renderer.hpp"
 #include "src/renderer/rendererImpl.hpp"
 #include "src/renderer/gpuMemoryImpl.hpp"
@@ -96,6 +95,9 @@ void Renderer::CreateGraphicsPipeline(Renderer::GraphicsPipelineParams& graphics
 			break;
 		case DescriptorSetBindingParams::Texture_bit:
 			layoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+			break;
+		case DescriptorSetBindingParams::InputAttachment_bit:
+			layoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
 			break;
 		}
 		layoutBinding.descriptorCount = descriptorSetBindingParam.count;
@@ -208,17 +210,26 @@ void Renderer::CreateGraphicsPipeline(Renderer::GraphicsPipelineParams& graphics
 	PDSSC.depthBoundsTestEnable = VK_FALSE; // 境界テストはOFF
 	PDSSC.stencilTestEnable = VK_FALSE;
 
-	VkPipelineColorBlendAttachmentState PCBAS[2];
-	int PCBASCount = 1;
-	PCBAS[0] = {};
-	PCBAS[0].colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-	PCBAS[0].blendEnable = VK_TRUE;
-	PCBAS[0].dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-	PCBAS[0].srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-	PCBAS[0].colorBlendOp = VK_BLEND_OP_ADD;
-	PCBAS[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-	PCBAS[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-	PCBAS[0].alphaBlendOp = VK_BLEND_OP_ADD;
+	auto* pRenderPassForColorCount = m_pImpl->renderPassImpl[graphicsPipelineParams.renderPassName];
+	int colorAttachmentCount = 0;
+	// サブパスに対応するカラーアタッチメント数を取得
+	if (graphicsPipelineParams.subpassIndex < pRenderPassForColorCount->subpassColorAttachmentCounts.size()) {
+		colorAttachmentCount = pRenderPassForColorCount->subpassColorAttachmentCounts[graphicsPipelineParams.subpassIndex];
+	}
+
+	VkPipelineColorBlendAttachmentState PCBAS[16];
+	int PCBASCount = colorAttachmentCount;
+	for (int i = 0; i < PCBASCount; i++) {
+		PCBAS[i] = {};
+		PCBAS[i].colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+		PCBAS[i].blendEnable = VK_TRUE;
+		PCBAS[i].dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+		PCBAS[i].srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+		PCBAS[i].colorBlendOp = VK_BLEND_OP_ADD;
+		PCBAS[i].dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+		PCBAS[i].srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+		PCBAS[i].alphaBlendOp = VK_BLEND_OP_ADD;
+	}
 
 	VkPipelineColorBlendStateCreateInfo PCBSC = {};
 	PCBSC.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
@@ -237,8 +248,14 @@ void Renderer::CreateGraphicsPipeline(Renderer::GraphicsPipelineParams& graphics
 	PLCI.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 	PLCI.flags = 0;
 	PLCI.pNext = nullptr;
-	PLCI.pushConstantRangeCount = 1;
-	PLCI.pPushConstantRanges = &pushConstantRange;
+	// pushConstantSize が 0 の場合は PushConstantRange を設定しない
+	if (graphicsPipelineParams.pushConstantSize > 0) {
+		PLCI.pushConstantRangeCount = 1;
+		PLCI.pPushConstantRanges = &pushConstantRange;
+	} else {
+		PLCI.pushConstantRangeCount = 0;
+		PLCI.pPushConstantRanges = nullptr;
+	}
 	PLCI.setLayoutCount = descriptorSetCounter;
 
 	VkDescriptorSetLayout temp[256];
@@ -436,11 +453,19 @@ void Renderer::CreateRenderPass(Renderer::RenderPassParams& renderPassParams)
 		dependency = VkSubpassDependency{};
 		dependency.srcSubpass = (dependencyParam.srcSubpass == -1) ? VK_SUBPASS_EXTERNAL : dependencyParam.srcSubpass;
 		dependency.dstSubpass = (dependencyParam.dstSubpass == -1) ? VK_SUBPASS_EXTERNAL : dependencyParam.dstSubpass;
-		dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-		dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-		dependency.srcAccessMask = 0;
-		dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-		dependency.dependencyFlags = 0;
+		dependency.srcStageMask = (dependencyParam.srcStageMask != Renderer::PipelineStageFlagBits::None) 
+			? ConvertPipelineStageFlags(dependencyParam.srcStageMask)
+			: (VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT);
+		dependency.dstStageMask = (dependencyParam.dstStageMask != Renderer::PipelineStageFlagBits::None) 
+			? ConvertPipelineStageFlags(dependencyParam.dstStageMask)
+			: (VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT);
+		dependency.srcAccessMask = (dependencyParam.srcAccessMask != Renderer::AccessFlagBits::None) 
+			? ConvertAccessFlags(dependencyParam.srcAccessMask)
+			: 0;
+		dependency.dstAccessMask = (dependencyParam.dstAccessMask != Renderer::AccessFlagBits::None) 
+			? ConvertAccessFlags(dependencyParam.dstAccessMask)
+			: (VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT);
+		dependency.dependencyFlags = ConvertDependencyFlags(dependencyParam.dependencyFlags);
 	}
 
 	// render pass
@@ -457,6 +482,12 @@ void Renderer::CreateRenderPass(Renderer::RenderPassParams& renderPassParams)
 	VkResult result = vkCreateRenderPass(m_pImpl->logicalDevice, &RPCI, nullptr, &pRenderPassImpl->renderPass);
 	if (result != VK_SUCCESS) {
 		exit(1);
+	}
+
+	// サブパスごとのカラーアタッチメント数を保存
+	pRenderPassImpl->subpassColorAttachmentCounts.resize(renderPassParams.subpasses.size());
+	for (int i = 0; i < renderPassParams.subpasses.size(); i++) {
+		pRenderPassImpl->subpassColorAttachmentCounts[i] = static_cast<int>(renderPassParams.subpasses[i].colorAttachments.size());
 	}
 
 	pRenderPassImpl->pFrameBuffer = new VkFramebuffer[m_pImpl->swapChainImageCount];
@@ -654,6 +685,25 @@ void Renderer::WriteDescriptorSet(Renderer::DescriptorWriterParams& descriptorWr
 			writeDescriptorSet.pImageInfo = imageInfos + imageInfoCounter - descriptorInfo.count;
 			writeDescriptorSets[i] = writeDescriptorSet;
 		}
+		else if (descriptorInfo.type == Renderer::DescriptorWriterParams::DescriptorInfo::InputAttachment) {
+			for (int j = 0; j < descriptorInfo.count; j++) {
+				GpuTextureMemoryImpl* pGpuTextureMemoryImpl = reinterpret_cast<GpuTextureMemoryImpl*>(descriptorInfo.pResources[j]);
+				VkDescriptorImageInfo imageInfo = {};
+				imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+				imageInfo.imageView = pGpuTextureMemoryImpl->imageView;
+				imageInfo.sampler = VK_NULL_HANDLE;
+				imageInfos[imageInfoCounter++] = imageInfo;
+			}
+			VkWriteDescriptorSet writeDescriptorSet = {};
+			writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			writeDescriptorSet.dstSet = descriptorSetInterface.pDescriptorSetImpl->descriptorSet;
+			writeDescriptorSet.dstBinding = descriptorInfo.bindingNum;
+			writeDescriptorSet.dstArrayElement = 0;
+			writeDescriptorSet.descriptorCount = descriptorInfo.count;
+			writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+			writeDescriptorSet.pImageInfo = imageInfos + imageInfoCounter - descriptorInfo.count;
+			writeDescriptorSets[i] = writeDescriptorSet;
+		}
 	}
 	vkUpdateDescriptorSets(m_pImpl->logicalDevice, descriptorWriteParams.descriptorInfos.size(), writeDescriptorSets, 0, nullptr);
 }
@@ -729,7 +779,7 @@ void Renderer::Initialize(InitializeParams& initializeParams)
 	appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);	//アプリケーションのバージョン，
 	appInfo.pEngineName = nullptr;			//使用するエンジンの名前
 	appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
-	appInfo.apiVersion = VK_API_VERSION_1_2; //アプリケーションが期待するvulkan apiのバージョン，実行に必要な最小のバージョンを設定する
+	appInfo.apiVersion = VK_API_VERSION_1_3; //アプリケーションが期待するvulkan apiのバージョン，1.3でStorageImageReadWithoutFormatが自動有効
 
 	VkInstanceCreateInfo createInfo{};
 	createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
@@ -1073,9 +1123,14 @@ void Renderer::Initialize(InitializeParams& initializeParams)
 	indexingFeatures.runtimeDescriptorArray = VK_TRUE;
 	indexingFeatures.pNext = nullptr;
 
+	// Vulkan 1.1 機能（shaderDrawParameters を有効にする - SV_VertexID 使用のため）
+	VkPhysicalDeviceVulkan11Features vulkan11Features = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES };
+	vulkan11Features.shaderDrawParameters = VK_TRUE;
+	vulkan11Features.pNext = &indexingFeatures;
+
 	VkPhysicalDeviceBufferDeviceAddressFeatures bufferDeviceAddressFeatures = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES };
 	bufferDeviceAddressFeatures.bufferDeviceAddress = VK_TRUE;
-	bufferDeviceAddressFeatures.pNext = &indexingFeatures;
+	bufferDeviceAddressFeatures.pNext = &vulkan11Features;
 
 	VkDeviceCreateInfo DCInfo;
 	DCInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -1279,21 +1334,25 @@ void Renderer::Initialize(InitializeParams& initializeParams)
 	}
 
 	{
-		VkDescriptorPoolSize poolSize[2];
+		VkDescriptorPoolSize poolSize[3];
 		// ubo用
 		poolSize[0] = {};
 		poolSize[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		poolSize[0].descriptorCount = 10;
+		poolSize[0].descriptorCount = 100;
 		// テクスチャ用
 		poolSize[1] = {};
 		poolSize[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		poolSize[1].descriptorCount = 10;
+		poolSize[1].descriptorCount = 100;
+		// input attachment用（遅延シェーディング用）
+		poolSize[2] = {};
+		poolSize[2].type = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+		poolSize[2].descriptorCount = 100;
 
 		VkDescriptorPoolCreateInfo DPCI = {};
 		DPCI.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-		DPCI.poolSizeCount = 2;
+		DPCI.poolSizeCount = 3;
 		DPCI.pPoolSizes = poolSize;
-		DPCI.maxSets = 10;
+		DPCI.maxSets = 100;
 		DPCI.flags = 0;
 
 		result = vkCreateDescriptorPool(logicaldevice, &DPCI, nullptr, &m_pImpl->descriptorPool);
@@ -1538,7 +1597,9 @@ void Renderer::Draw(DrawParams& drawParams)
 	}
 
 	VkDeviceSize vertexBufferOffsets = 0;
-	vkCmdBindVertexBuffers(m_pImpl->CB[gpuIndex], 0, 1, &drawParams.pVertexArray->buffer, &vertexBufferOffsets);
+	if (drawParams.pVertexArray != nullptr) {
+		vkCmdBindVertexBuffers(m_pImpl->CB[gpuIndex], 0, 1, &drawParams.pVertexArray->buffer, &vertexBufferOffsets);
+	}
 
 	if (drawParams.pIndexArray != nullptr) {
 		vkCmdBindIndexBuffer(m_pImpl->CB[gpuIndex], drawParams.pIndexArray->buffer, 0, VkIndexType::VK_INDEX_TYPE_UINT32);
@@ -1563,6 +1624,12 @@ void Renderer::EndRenderPass()
 {
 	uint32_t gpuIndex = (counter) % 2;
 	vkCmdEndRenderPass(m_pImpl->CB[gpuIndex]);
+}
+
+void Renderer::NextSubpass()
+{
+	uint32_t gpuIndex = (counter) % 2;
+	vkCmdNextSubpass(m_pImpl->CB[gpuIndex], VK_SUBPASS_CONTENTS_INLINE);
 }
 
 void Renderer::DrawEnd()
@@ -1636,6 +1703,9 @@ void Renderer::RegisterVertexInputStateImpl3(VertexAttributeLayout* vertexAttrib
 			break;
 		case VertexAttributeFormat::Vec4:
 			pVertexInputStateImpl->attributeDescriptions[i].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+			break;
+		case VertexAttributeFormat::Float:
+			pVertexInputStateImpl->attributeDescriptions[i].format = VK_FORMAT_R32_SFLOAT;
 			break;
 		}
 		pVertexInputStateImpl->attributeDescriptions[i].offset = vertexAttributeLayout->attributes[i].offset;

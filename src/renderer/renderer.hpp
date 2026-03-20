@@ -54,6 +54,7 @@ public:
 				Sampler,
 				Texture,
 				Combined_Image_Sampler,
+				InputAttachment,
 			} type;
 			uint32_t bindingNum;
 			uint32_t count;
@@ -86,7 +87,8 @@ public:
 		RGBA8_SNORM,
 		RGBA8_UNORM,
 		RGBA16_SFLOAT,
-		RGBA32_SNORM,
+		RGBA32_FLOAT,
+		R32G32B32A32_FLOAT,
 		DEPTH16_UNORM,
 		DEPTH32_SFLOAT,
 	};
@@ -103,7 +105,7 @@ public:
 		PreInitialized,
 		DepthReadOnlyStencilAttachmentOptimal,
 		PresentSrcKHR,
-		// TODO ï¿½ï¿½
+		// TODO ’Ç‰Á
 	};
 
 	enum AttatchmentLabel {
@@ -133,6 +135,51 @@ public:
 		Never,
 	};
 
+	enum class PipelineStageFlagBits : uint32_t {
+		None = 0,
+		TopOfPipe = 0x00000001,
+		DrawIndirect = 0x00000002,
+		VertexInput = 0x00000004,
+		VertexShader = 0x00000008,
+		FragmentShader = 0x00000080,
+		EarlyFragmentTests = 0x00000100,
+		LateFragmentTests = 0x00000200,
+		ColorAttachmentOutput = 0x00000400,
+		ComputeShader = 0x00000800,
+		Transfer = 0x00001000,
+		BottomOfPipe = 0x00002000,
+		AllGraphics = 0x00008000,
+		AllCommands = 0x00010000,
+	};
+
+	enum class AccessFlagBits : uint32_t {
+		None = 0,
+		IndirectCommandRead = 0x00000001,
+		IndexRead = 0x00000002,
+		VertexAttributeRead = 0x00000004,
+		UniformRead = 0x00000008,
+		InputAttachmentRead = 0x00000010,
+		ShaderRead = 0x00000020,
+		ShaderWrite = 0x00000040,
+		ColorAttachmentRead = 0x00000080,
+		ColorAttachmentWrite = 0x00000100,
+		DepthStencilAttachmentRead = 0x00000200,
+		DepthStencilAttachmentWrite = 0x00000400,
+		TransferRead = 0x00000800,
+		TransferWrite = 0x00001000,
+		HostRead = 0x00002000,
+		HostWrite = 0x00004000,
+		MemoryRead = 0x00008000,
+		MemoryWrite = 0x00010000,
+	};
+
+	enum class DependencyFlagBits : uint32_t {
+		None = 0,
+		ByRegion = 0x00000001,
+		ViewLocal = 0x00000002,
+		DeviceGroup = 0x00000004,
+	};
+
 	struct CreateImageParams
 	{
 		uint32_t width;
@@ -158,12 +205,13 @@ public:
 
 
 
-	struct DescriptorSetBindingParams // DescriptorSet ï¿½Æ“ï¿½ï¿½l
+	struct DescriptorSetBindingParams // DescriptorSet ‚Æ“¯‚¶
 	{
 		enum DescriptorType {
 			UniformBuffer_bit = 0x00000001,
 			Sampler_bit = 0x00000010,
 			Texture_bit = 0x00000100,
+			InputAttachment_bit = 0x00001000,
 		};
 
 		DescriptorType type;
@@ -178,13 +226,13 @@ public:
 		uint32_t count;
 	};
 
-	struct DescriptorSetLayoutParams // DescriptorSetLayout ï¿½Æ“ï¿½ï¿½l
+	struct DescriptorSetLayoutParams // DescriptorSetLayout ‚Æ“¯‚¶
 	{
 		ValueArray<DescriptorSetBindingParams*> descriptorSetBindingParams;
 		bool isBindless = false;
 	};
 
-	struct VertexAttributeLayout // VertexInputState ï¿½Æ“ï¿½ï¿½l
+	struct VertexAttributeLayout // VertexInputState ‚Æ“¯‚¶
 	{
 		std::string name;
 		struct Attributes {
@@ -197,13 +245,13 @@ public:
 			int binding = 0;
 		};
 
-		// ï¿½Æ‚è‚ ï¿½ï¿½ï¿½ï¿½ binding = 0 ï¿½Å’ï¿½
+		// ‚Æ‚è‚ ‚¦‚¸ binding = 0 ‚ÅŒÅ’è
 		ValueArray<Attributes> attributes;
 		int stride = 0;
 		int binding = 0;
 	};
 
-	struct ShaderStageParams // ShaderStage ï¿½Æ“ï¿½ï¿½l
+	struct ShaderStageParams // ShaderStage ‚Æ“¯‚¶
 	{
 		std::string shaderPath = "";
 		int specializationConstantCount;
@@ -225,14 +273,19 @@ public:
 	};
 
 	struct SubpassParams {
-		std::vector<int> colorAttachments; // ç‰¹å®šãƒ‘ã‚¹å†…ã®index
-		std::vector<int> inputAttachments; // ç‰¹å®šãƒ‘ã‚¹å†…ã®index
+		std::vector<int> colorAttachments; // “Á’èƒpƒX“à‚Ìindex
+		std::vector<int> inputAttachments; // “Á’èƒpƒX“à‚Ìindex
 		int depthAttathment;
 	};
 
 	struct SubpassDependencyParams {
-		int srcSubpass = -1; // ç‰¹å®šãƒ‘ã‚¹å†…ã®index
+		int srcSubpass = -1; // “Á’èƒpƒX“à‚Ìindex
 		int dstSubpass = -1;
+		PipelineStageFlagBits srcStageMask = PipelineStageFlagBits::None;
+		PipelineStageFlagBits dstStageMask = PipelineStageFlagBits::None;
+		AccessFlagBits srcAccessMask = AccessFlagBits::None;
+		AccessFlagBits dstAccessMask = AccessFlagBits::None;
+		DependencyFlagBits dependencyFlags = DependencyFlagBits::None;
 	};
 
 	struct RenderPassParams {
@@ -245,7 +298,7 @@ public:
 		std::string clearRenderPassName = "";
 	};
 
-	struct GraphicsPipelineParams // GraphicsPipeline ï¿½Æ“ï¿½ï¿½l
+	struct GraphicsPipelineParams // GraphicsPipeline ‚Æ“¯‚¶
 	{
 		std::string name;
 		ValueArray<ShaderStageParams*> shaders;
@@ -266,40 +319,49 @@ public:
 		return VertexAttributeFormat::Error;
 	}
 
-	// TODO : vulkan ï¿½Ë‘ï¿½ï¿½ï¿½ï¿½È‚ï¿½ï¿½ï¿½
+		// TODO : vulkan ‚ÉˆË‘¶‚µ‚È‚¢
 	template <class ValueType>
 	static void SetVertexAttributeDescription2(VertexAttributeLayout* pVertexAttributeLayout)
 	{
-		// ï¿½Gï¿½ï¿½ï¿½[
-		pVertexAttributeLayout->attributes[0].binding = 0; // binding ï¿½ï¿½ vkCmdBindVertexBuffers ï¿½Ìwï¿½ï¿½
+		pVertexAttributeLayout->attributes[0].binding = 0;
 		pVertexAttributeLayout->attributes[0].location = 0;
-		pVertexAttributeLayout->attributes[0].format = typeConverterFormat<decltype(ValueType::position)>(); // glsl ï¿½Å‚ï¿½ vec3
+		pVertexAttributeLayout->attributes[0].format = typeConverterFormat<decltype(ValueType::position)>();
 		pVertexAttributeLayout->attributes[0].offset = offsetof(ValueType, ValueType::position);
 
-		pVertexAttributeLayout->attributes[1].binding = 0; // binding ï¿½ï¿½ vkCmdBindVertexBuffers ï¿½Ìwï¿½ï¿½
+		pVertexAttributeLayout->attributes[1].binding = 0;
 		pVertexAttributeLayout->attributes[1].location = 1;
-		pVertexAttributeLayout->attributes[1].format = typeConverterFormat<decltype(ValueType::normal)>(); // glsl ï¿½Å‚ï¿½ vec3
+		pVertexAttributeLayout->attributes[1].format = typeConverterFormat<decltype(ValueType::normal)>();
 		pVertexAttributeLayout->attributes[1].offset = offsetof(ValueType, ValueType::normal);
 
-		pVertexAttributeLayout->attributes[2].binding = 0; // binding ï¿½ï¿½ vkCmdBindVertexBuffers ï¿½Ìwï¿½ï¿½
+		pVertexAttributeLayout->attributes[2].binding = 0;
 		pVertexAttributeLayout->attributes[2].location = 2;
-		pVertexAttributeLayout->attributes[2].format = typeConverterFormat<decltype(ValueType::color)>(); // glsl ï¿½Å‚ï¿½ vec4
+		pVertexAttributeLayout->attributes[2].format = typeConverterFormat<decltype(ValueType::color)>();
 		pVertexAttributeLayout->attributes[2].offset = offsetof(ValueType, ValueType::color);
 
-		pVertexAttributeLayout->attributes[3].binding = 0; // binding ï¿½ï¿½ vkCmdBindVertexBuffers ï¿½Ìwï¿½ï¿½
+		pVertexAttributeLayout->attributes[3].binding = 0;
 		pVertexAttributeLayout->attributes[3].location = 3;
 		pVertexAttributeLayout->attributes[3].format = typeConverterFormat<decltype(ValueType::uv)>();
 		pVertexAttributeLayout->attributes[3].offset = offsetof(ValueType, ValueType::uv);
+
+		pVertexAttributeLayout->attributes[4].binding = 0;
+		pVertexAttributeLayout->attributes[4].location = 4;
+		pVertexAttributeLayout->attributes[4].format = typeConverterFormat<decltype(ValueType::tangent)>();
+		pVertexAttributeLayout->attributes[4].offset = offsetof(ValueType, ValueType::tangent);
+
+		pVertexAttributeLayout->attributes[5].binding = 0;
+		pVertexAttributeLayout->attributes[5].location = 5;
+		pVertexAttributeLayout->attributes[5].format = typeConverterFormat<decltype(ValueType::roughness)>();
+		pVertexAttributeLayout->attributes[5].offset = offsetof(ValueType, ValueType::roughness);
 	}
 
 	template <class ValueType>
 	static void CreateVertexAttributeLayout2(VertexAttributeLayout* pVertexAttributeLayout)
 	{
 		pVertexAttributeLayout->name = typeid(ValueType).name();
-		pVertexAttributeLayout->binding = 0; // binding ï¿½ï¿½ vkCmdBindVertexBuffers ï¿½Ìwï¿½ï¿½
+		pVertexAttributeLayout->binding = 0; // binding ‚Í vkCmdBindVertexBuffers ‚Ìw’è
 		pVertexAttributeLayout->stride = sizeof(ValueType);
 
-		pVertexAttributeLayout->attributes.resize(4);
+		pVertexAttributeLayout->attributes.resize(6);
 		SetVertexAttributeDescription2<ValueType>(pVertexAttributeLayout);
 	}
 
@@ -321,7 +383,7 @@ public:
 	template <class ValueType>
 	void InitializeVertexArray(DrawVertexArray<ValueType>* pDrawArray)
 	{
-		// drawArray.cpp ï¿½Éï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È‚ï¿½ï¿½Æï¿½ï¿½ï¿½
+		// drawArray.cpp ‚ÉÀ‘•‚µ‚È‚¢‚Æ‘Ê–Ú
 		pDrawArray->gpuInitialize(m_pImpl);
 	}
 
@@ -331,7 +393,7 @@ public:
 	template <class ValueType>
 	void UpdateVertexArray(DrawVertexArray<ValueType>* pDrawArray)
 	{
-		// drawArray.cpp ï¿½Éï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È‚ï¿½ï¿½Æï¿½ï¿½ï¿½
+		// drawArray.cpp ‚ÉÀ‘•‚µ‚È‚¢‚Æ‘Ê–Ú
 		pDrawArray->updateGpuMemory(m_pImpl);
 	}
 
@@ -396,6 +458,7 @@ public:
 	void BeginRenderPass(BeginRenderPassParams& beginRenderPassParams);
 	void ClearRenderPassAttatchment(ClearRrenderPassAttatchmentParams& clearRenderPassAttatchmentParams);
 	void Draw(DrawParams& drawParams);
+	void NextSubpass();
 	void EndRenderPass();
 	void DrawEnd();
 };
@@ -415,3 +478,9 @@ inline  Renderer::VertexAttributeFormat Renderer::typeConverterFormat<fvec4>()
 {
 	return  Renderer::VertexAttributeFormat::Vec4;
 }
+template <>
+inline  Renderer::VertexAttributeFormat Renderer::typeConverterFormat<float>()
+{
+	return  Renderer::VertexAttributeFormat::Float;
+}
+

@@ -12,6 +12,8 @@ struct BasicVertex
 	fvec3 normal;
 	fvec2 uv;
 	fvec4 color;
+	fvec4 tangent; // xyz = tangent, w = handedness (Å}1)
+	float roughness;
 };
 
 template<class ValueType>

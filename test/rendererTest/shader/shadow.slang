@@ -17,6 +17,8 @@ struct VSInput {
 	[[vk::location(1)]] float3 normal;
 	[[vk::location(2)]] float4 color;
 	[[vk::location(3)]] float2 uv;
+	[[vk::location(4)]] float4 tangent;
+	[[vk::location(5)]] float roughness;
 };
 
 struct VSOutput {

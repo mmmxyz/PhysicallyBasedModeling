@@ -12,7 +12,7 @@ struct HeapDebugInfo
 class RootAllocator
 {
 public:
-	void* allocate(std::size_t byteSize, HeapDebugInfo debugInfo)
+	void* allocate(std::size_t byteSize, HeapDebugInfo& debugInfo)
 	{
 		std::cout << debugInfo.debugFlag << std::endl;
 		return std::malloc(byteSize);

@@ -51,7 +51,7 @@ inline VkFormat ConvertImageFormat(Renderer::ImageFormat format, VkFormat swapCh
 		return VK_FORMAT_R8G8B8A8_UNORM;
 	case Renderer::RGBA16_SFLOAT:
 		return VK_FORMAT_R16G16B16A16_SFLOAT;
-	case Renderer::RGBA32_SNORM:
+	case Renderer::RGBA32_FLOAT:
 		return VK_FORMAT_R32G32B32A32_SFLOAT;
 	case Renderer::DEPTH16_UNORM:
 		return VK_FORMAT_D16_UNORM;
@@ -61,6 +61,21 @@ inline VkFormat ConvertImageFormat(Renderer::ImageFormat format, VkFormat swapCh
 		assert(false);
 		return VK_FORMAT_UNDEFINED;
 	}
+}
+
+inline VkPipelineStageFlags ConvertPipelineStageFlags(Renderer::PipelineStageFlagBits flags)
+{
+	return static_cast<VkPipelineStageFlags>(flags);
+}
+
+inline VkAccessFlags ConvertAccessFlags(Renderer::AccessFlagBits flags)
+{
+	return static_cast<VkAccessFlags>(flags);
+}
+
+inline VkDependencyFlags ConvertDependencyFlags(Renderer::DependencyFlagBits flags)
+{
+	return static_cast<VkDependencyFlags>(flags);
 }
 
 // TODO: 実装分離
@@ -137,6 +152,9 @@ public:
 
 		int attatchmentIndexTable[(int)Renderer::AttatchmentLabel::Count] = { -1 }; // i 番目の attatchment のラベル
 		GpuTextureMemoryImpl attatchmentTextureMemoryImpls[(int)Renderer::AttatchmentLabel::Count]; // ラベルの texture
+
+		// サブパスごとのカラーアタッチメント数を保存
+		std::vector<int> subpassColorAttachmentCounts;
 	};
 
 	static int GetAttatchmentIndex(Renderer::AttatchmentLabel label, RendererImpl::RenderPassImpl* pRenderPassImpl)
@@ -387,7 +405,7 @@ public:
 		imageCopy.imageSubresource.baseArrayLayer = 0;
 		imageCopy.imageSubresource.layerCount = 1;
 		imageCopy.imageOffset = { 0,0,0 };
-		imageCopy.imageExtent = { 128, 128,1 };
+		imageCopy.imageExtent = { textureMemory.width, textureMemory.height, 1 };
 
 		vkCmdCopyBufferToImage(CB[0], stagingBufferMemory.buffer, textureMemory.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &imageCopy);
 
