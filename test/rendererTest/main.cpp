@@ -1030,7 +1030,7 @@ void CreateBunnyObject(Renderer& renderer, DrawObject& drawObject)
 	std::vector<fvec2> uvs;
 	std::vector<uint32_t> faceindices;
 
-	constexpr auto resourcePath = RESOURCE_DIR "/LightBunny.obj";
+	constexpr auto resourcePath = RESOURCE_DIR "/Bunny.obj";
 
 	LoadOBJtoRenderTriangleMesh(
 		resourcePath,
@@ -1270,7 +1270,7 @@ int main()
 	// light data
 	LightData lightData;
 	lightData.lightPos = fvec3(5.0f, 5.0f, 0.0f);
-	lightData.lightIntensity = 80.0f;
+	lightData.lightIntensity = 120.0f;
 	lightData.color = fvec3(1.0f, 1.0f, 1.0f);
 	lightData.cameraPos = fvec3(0.0f, 2.0f, 5.0f);
 
